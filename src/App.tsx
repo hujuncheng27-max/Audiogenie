@@ -3,48 +3,90 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { View, Artifact } from './types';
-import { MOCK_ARTIFACTS } from './constants';
+import { View, Artifact, GenerationPayload } from './types';
 import { TopNavBar } from './components/TopNavBar';
 import { Footer } from './components/Footer';
 import { Workspace } from './components/Workspace';
 import { ProcessingView } from './components/ProcessingView';
 import { ResultsView } from './components/ResultsView';
+import { getGenerations, createGeneration, pollGenerationStatus } from './services/api';
 
 export default function App() {
   const [view, setView] = useState<View>('workspace');
-  const [artifacts, setArtifacts] = useState<Artifact[]>(MOCK_ARTIFACTS);
+  const [artifacts, setArtifacts] = useState<Artifact[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleGenerate = () => {
-    setView('processing');
-    // Simulate generation delay
-    setTimeout(() => {
-      const newId = Date.now().toString();
-      const newArtifact: Artifact = {
-        id: newId,
-        title: `Synthesis_${Math.floor(Math.random() * 1000)}`,
-        type: 'SFX',
-        duration: '00:15.0s',
-        heights: Array.from({ length: 20 }, () => Math.floor(Math.random() * 10) + 2)
-      };
-      setArtifacts(prev => [newArtifact, ...prev]);
-      setView('results');
-    }, 5000);
-  };
-
-  const handleNewGeneration = () => {
-    const newId = Date.now().toString();
-    const newArtifact: Artifact = {
-      id: newId,
-      title: `Manual Gen_${Math.floor(Math.random() * 1000)}`,
-      type: 'Music',
-      duration: '00:30.0s',
-      heights: Array.from({ length: 20 }, () => Math.floor(Math.random() * 10) + 2)
+  // Fetch initial generations on mount
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        const data = await getGenerations();
+        setArtifacts(data);
+      } catch (error) {
+        console.error('Failed to fetch initial generations:', error);
+      } finally {
+        setLoading(false);
+      }
     };
-    setArtifacts(prev => [newArtifact, ...prev]);
+    fetchInitialData();
+  }, []);
+
+  const handleGenerate = async (payload: GenerationPayload) => {
+    setView('processing');
+    
+    try {
+      // 1. Create the generation job
+      const response = await createGeneration(payload);
+      
+      // 2. Poll for status (simulated polling logic)
+      // In a real app, this might involve a loop or a websocket
+      const result = await pollGenerationStatus(response.id);
+      
+      if (result.status === 'completed' && result.artifact) {
+        setArtifacts(prev => [result.artifact!, ...prev]);
+        setView('results');
+      } else {
+        // Handle failure
+        console.error('Generation failed or returned incomplete data');
+        setView('workspace');
+      }
+    } catch (error) {
+      console.error('Generation process failed:', error);
+      setView('workspace');
+    }
   };
+
+  const handleNewGeneration = async () => {
+    // This is just a mock for adding a "new generation" manually
+    // In a real app, this might just reset the workspace or trigger a default generation
+    const mockPayload: GenerationPayload = {
+      prompt: "Manual Generation",
+      outputClass: "Music",
+      languageModel: "English (Studio High-Def)",
+      acousticStyle: "Industrial",
+      duration: 30
+    };
+    
+    try {
+      const response = await createGeneration(mockPayload);
+      const result = await pollGenerationStatus(response.id);
+      if (result.artifact) {
+        setArtifacts(prev => [result.artifact!, ...prev]);
+      }
+    } catch (error) {
+      console.error('Manual generation failed:', error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-primary font-headline text-xl animate-pulse uppercase tracking-widest">Initializing Synthesis Engine...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-on-surface font-body selection:bg-primary/30 flex flex-col">

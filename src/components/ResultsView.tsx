@@ -8,6 +8,7 @@ import { Play, Pause, Download, Share2, MoreHorizontal, ChevronRight, Layers, Ma
 import { motion } from 'motion/react';
 import { Artifact } from '../types';
 import { TrackCard } from './TrackCard';
+import { exportGeneration } from '../services/api';
 
 interface ResultsViewProps {
   artifacts: Artifact[];
@@ -17,9 +18,24 @@ export function ResultsView({ artifacts }: ResultsViewProps) {
   const [selectedTrack, setSelectedTrack] = useState(artifacts[0]?.id || '1');
   const [playingTrack, setPlayingTrack] = useState<string | null>(null);
   const [iteration, setIteration] = useState('A');
+  const [isExporting, setIsExporting] = useState(false);
 
   const togglePlay = (id: string) => {
     setPlayingTrack(playingTrack === id ? null : id);
+  };
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const res = await exportGeneration(selectedTrack);
+      console.log('Export URL:', res.url);
+      alert(`Master export initiated for track ${selectedTrack}. URL: ${res.url}`);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export master. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -34,10 +50,11 @@ export function ResultsView({ artifacts }: ResultsViewProps) {
             <Share2 size={16} /> Share Batch
           </button>
           <button 
-            onClick={() => { console.log("Exporting master..."); alert("Master export initiated. Check your downloads folder."); }}
-            className="bg-primary text-on-primary px-8 py-3 rounded font-bold uppercase tracking-widest text-xs hover:bg-primary-container transition-all shadow-lg shadow-primary/20 flex items-center gap-2"
+            onClick={handleExport}
+            disabled={isExporting}
+            className={`bg-primary text-on-primary px-8 py-3 rounded font-bold uppercase tracking-widest text-xs transition-all shadow-lg shadow-primary/20 flex items-center gap-2 ${isExporting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-primary-container'}`}
           >
-            <Download size={16} /> Export Master
+            <Download size={16} /> {isExporting ? 'Exporting...' : 'Export Master'}
           </button>
         </div>
       </header>

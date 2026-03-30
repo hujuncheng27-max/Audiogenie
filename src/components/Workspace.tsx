@@ -5,13 +5,14 @@
 
 import React, { useState } from 'react';
 import { PlusCircle, Waves, Music2, Download } from 'lucide-react';
-import { Artifact } from '../types';
+import { Artifact, GenerationPayload } from '../types';
 import { UploadSection } from './UploadSection';
 import { OutputConfigSection } from './OutputConfigSection';
 import { JobSummarySection } from './JobSummarySection';
+import { uploadVideo, uploadImage } from '../services/api';
 
 interface WorkspaceProps {
-  onGenerate: () => void;
+  onGenerate: (payload: GenerationPayload) => void;
   artifacts: Artifact[];
   onNewGeneration: () => void;
 }
@@ -24,6 +25,42 @@ export function Workspace({ onGenerate, artifacts, onNewGeneration }: WorkspaceP
   const [languageModel, setLanguageModel] = useState("English (Studio High-Def)");
   const [acousticStyle, setAcousticStyle] = useState("Industrial");
   const [duration, setDuration] = useState(15);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleGenerateClick = async () => {
+    setIsUploading(true);
+    try {
+      let videoRef: string | undefined;
+      let imageRef: string | undefined;
+
+      if (videoFile) {
+        const res = await uploadVideo(videoFile);
+        videoRef = res.ref;
+      }
+
+      if (imageFile) {
+        const res = await uploadImage(imageFile);
+        imageRef = res.ref;
+      }
+
+      const payload: GenerationPayload = {
+        prompt,
+        outputClass,
+        languageModel,
+        acousticStyle,
+        duration,
+        videoRef,
+        imageRef
+      };
+
+      onGenerate(payload);
+    } catch (error) {
+      console.error('Upload failed:', error);
+      alert('Failed to upload files. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   return (
     <div className="p-8 md:p-12 max-w-[1600px] mx-auto w-full space-y-12">
@@ -67,7 +104,8 @@ export function Workspace({ onGenerate, artifacts, onNewGeneration }: WorkspaceP
             imageFile={imageFile}
             outputClass={outputClass}
             acousticStyle={acousticStyle}
-            onGenerate={onGenerate}
+            onGenerate={handleGenerateClick}
+            isProcessing={isUploading}
           />
         </section>
       </div>

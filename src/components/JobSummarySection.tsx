@@ -13,6 +13,7 @@ interface JobSummarySectionProps {
   outputClass: string;
   acousticStyle: string;
   onGenerate: () => void;
+  isProcessing?: boolean;
 }
 
 export function JobSummarySection({
@@ -21,7 +22,8 @@ export function JobSummarySection({
   imageFile,
   outputClass,
   acousticStyle,
-  onGenerate
+  onGenerate,
+  isProcessing = false
 }: JobSummarySectionProps) {
   return (
     <div className="bg-surface-container/60 backdrop-blur-xl p-6 rounded-xl flex flex-col gap-8 h-full border border-outline-variant/15">
@@ -59,9 +61,10 @@ export function JobSummarySection({
           </div>
           <button 
             onClick={onGenerate}
-            className="w-full bg-primary py-4 rounded-lg text-on-primary font-headline font-extrabold uppercase tracking-widest hover:bg-primary-container transition-all active:scale-[0.98]"
+            disabled={isProcessing}
+            className={`w-full py-4 rounded-lg text-on-primary font-headline font-extrabold uppercase tracking-widest transition-all active:scale-[0.98] ${isProcessing ? 'bg-outline cursor-not-allowed' : 'bg-primary hover:bg-primary-container'}`}
           >
-            Generate Audio
+            {isProcessing ? 'Uploading...' : 'Generate Audio'}
           </button>
         </div>
       </div>

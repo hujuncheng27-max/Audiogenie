@@ -13,12 +13,18 @@ export interface Artifact {
   heights: number[];
 }
 
-export interface WorkspaceState {
-  videoFile: File | null;
-  imageFile: File | null;
+export interface GenerationPayload {
   prompt: string;
   outputClass: string;
   languageModel: string;
   acousticStyle: string;
   duration: number;
+  videoRef?: string;
+  imageRef?: string;
+}
+
+export interface GenerationResponse {
+  id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  artifact?: Artifact;
 }
