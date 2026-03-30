@@ -4,100 +4,119 @@
  */
 
 import { Artifact, GenerationPayload, GenerationResponse } from '../types';
-import { MOCK_ARTIFACTS } from '../constants';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
+const DEFAULT_POLL_INTERVAL_MS = 1200;
+const DEFAULT_POLL_TIMEOUT_MS = 45000;
+
+async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: {
+      Accept: 'application/json',
+      ...(init?.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+
+    try {
+      const errorData = await response.json();
+      if (typeof errorData?.detail === 'string') {
+        message = errorData.detail;
+      }
+    } catch {
+      // Fall back to the default error message when the response is not JSON.
+    }
+
+    throw new Error(message);
+  }
+
+  return response.json() as Promise<T>;
+}
 
 /**
  * Uploads a video file to the backend.
  */
 export async function uploadVideo(file: File): Promise<{ ref: string }> {
-  console.log(`[API] Uploading video: ${file.name} to ${API_BASE_URL}`);
-  // Mocking delay and response
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  return { ref: `video_ref_${Date.now()}` };
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return apiRequest<{ ref: string }>('/upload/video', {
+    method: 'POST',
+    body: formData,
+  });
 }
 
 /**
  * Uploads an image file to the backend.
  */
 export async function uploadImage(file: File): Promise<{ ref: string }> {
-  console.log(`[API] Uploading image: ${file.name} to ${API_BASE_URL}`);
-  // Mocking delay and response
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  return { ref: `image_ref_${Date.now()}` };
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return apiRequest<{ ref: string }>('/upload/image', {
+    method: 'POST',
+    body: formData,
+  });
 }
 
 /**
  * Initiates a new audio generation job.
  */
 export async function createGeneration(payload: GenerationPayload): Promise<GenerationResponse> {
-  console.log(`[API] Creating generation with payload:`, payload);
-  // Mocking delay and response
-  await new Promise(resolve => setTimeout(resolve, 500));
-  return {
-    id: `gen_${Date.now()}`,
-    status: 'pending'
-  };
+  return apiRequest<GenerationResponse>('/generations', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
 }
 
 /**
  * Fetches the list of all generations/artifacts.
  */
 export async function getGenerations(): Promise<Artifact[]> {
-  console.log(`[API] Fetching all generations from ${API_BASE_URL}`);
-  // Mocking delay
-  await new Promise(resolve => setTimeout(resolve, 800));
-  return MOCK_ARTIFACTS;
+  return apiRequest<Artifact[]>('/generations');
 }
 
 /**
  * Fetches a specific generation by ID.
  */
 export async function getGenerationById(id: string): Promise<GenerationResponse> {
-  console.log(`[API] Fetching generation details for ID: ${id}`);
-  // Mocking delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  const artifact = MOCK_ARTIFACTS.find(a => a.id === id) || MOCK_ARTIFACTS[0];
-  
-  return {
-    id,
-    status: 'completed',
-    artifact
-  };
+  return apiRequest<GenerationResponse>(`/generations/${id}`);
 }
 
 /**
  * Exports a generation (e.g., triggers a download or returns a URL).
  */
 export async function exportGeneration(id: string): Promise<{ url: string }> {
-  console.log(`[API] Exporting generation ID: ${id}`);
-  // Mocking delay
-  await new Promise(resolve => setTimeout(resolve, 1200));
-  return { url: `https://storage.example.com/exports/${id}.wav` };
+  return apiRequest<{ url: string }>(`/generations/${id}/export`, {
+    method: 'POST',
+  });
 }
 
 /**
  * Polls for the status of a generation job.
  */
-export async function pollGenerationStatus(id: string): Promise<GenerationResponse> {
-  console.log(`[API] Polling status for ID: ${id}`);
-  // Mocking a state transition: pending -> processing -> completed
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  // For mock purposes, we'll just return completed with a new artifact
-  const newArtifact: Artifact = {
-    id,
-    title: `Synthesis_${id.slice(-4)}`,
-    type: 'SFX',
-    duration: '00:15.0s',
-    heights: Array.from({ length: 20 }, () => Math.floor(Math.random() * 10) + 2)
-  };
+export async function pollGenerationStatus(
+  id: string,
+  onStatusUpdate?: (response: GenerationResponse) => void,
+): Promise<GenerationResponse> {
+  const startedAt = Date.now();
 
-  return {
-    id,
-    status: 'completed',
-    artifact: newArtifact
-  };
+  while (Date.now() - startedAt < DEFAULT_POLL_TIMEOUT_MS) {
+    const result = await apiRequest<GenerationResponse>(`/generations/${id}/status`);
+    onStatusUpdate?.(result);
+
+    if (result.status === 'completed' || result.status === 'failed') {
+      return result;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, DEFAULT_POLL_INTERVAL_MS));
+  }
+
+  throw new Error(`Generation ${id} did not complete within ${DEFAULT_POLL_TIMEOUT_MS / 1000} seconds.`);
 }

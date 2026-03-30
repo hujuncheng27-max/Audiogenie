@@ -15,9 +15,10 @@ interface WorkspaceProps {
   onGenerate: (payload: GenerationPayload) => void;
   artifacts: Artifact[];
   onNewGeneration: () => void;
+  onViewHistory: () => void;
 }
 
-export function Workspace({ onGenerate, artifacts, onNewGeneration }: WorkspaceProps) {
+export function Workspace({ onGenerate, artifacts, onNewGeneration, onViewHistory }: WorkspaceProps) {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -56,7 +57,7 @@ export function Workspace({ onGenerate, artifacts, onNewGeneration }: WorkspaceP
       onGenerate(payload);
     } catch (error) {
       console.error('Upload failed:', error);
-      alert('Failed to upload files. Please try again.');
+      alert(error instanceof Error ? error.message : 'Failed to upload files. Please try again.');
     } finally {
       setIsUploading(false);
     }
@@ -114,7 +115,7 @@ export function Workspace({ onGenerate, artifacts, onNewGeneration }: WorkspaceP
       <section className="flex flex-col gap-6 mt-4">
         <div className="flex justify-between items-end border-b border-outline-variant/20 pb-4">
           <h2 className="font-headline text-xl font-bold text-on-surface uppercase tracking-tight">Recent Artifacts</h2>
-          <button className="text-[10px] uppercase font-bold text-primary tracking-widest hover:underline">View All History</button>
+          <button onClick={onViewHistory} className="text-[10px] uppercase font-bold text-primary tracking-widest hover:underline">View All History</button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {artifacts.map((art) => (

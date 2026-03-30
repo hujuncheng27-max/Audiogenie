@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type View = 'workspace' | 'processing' | 'results';
+export type View = 'workspace' | 'processing' | 'results' | 'history' | 'docs';
 
 export interface Artifact {
   id: string;
@@ -27,4 +27,10 @@ export interface GenerationResponse {
   id: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   artifact?: Artifact;
+}
+
+export interface ActiveGeneration {
+  id: string;
+  status: GenerationResponse['status'];
+  payload: GenerationPayload;
 }

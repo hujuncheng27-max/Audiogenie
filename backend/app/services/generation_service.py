@@ -1,5 +1,8 @@
+import io
+import math
 import uuid
 import random
+import wave
 from typing import Dict, List, Optional
 from ..schemas import GenerationStatus, Artifact, GenerationPayload, GenerationResponse
 
@@ -65,5 +68,32 @@ class GenerationService:
                 duration="00:15.0s",
                 heights=[random.randint(2, 12) for _ in range(20)]
             )
+
+    def build_mock_export(self, job_id: str) -> bytes:
+        job = self.jobs.get(job_id)
+        if not job or job.status != GenerationStatus.COMPLETED or not job.artifact:
+            raise ValueError("Generation is not ready for export")
+
+        sample_rate = 22050
+        duration_seconds = 1.2
+        total_frames = int(sample_rate * duration_seconds)
+        tone_seed = sum(ord(char) for char in job_id[-4:])
+        frequency = 220 + (tone_seed % 220)
+        amplitude = 16000
+
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as wav_file:
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(sample_rate)
+
+            frames = bytearray()
+            for index in range(total_frames):
+                sample = int(amplitude * math.sin((2 * math.pi * frequency * index) / sample_rate))
+                frames.extend(sample.to_bytes(2, byteorder="little", signed=True))
+
+            wav_file.writeframes(bytes(frames))
+
+        return buffer.getvalue()
 
 generation_service = GenerationService()

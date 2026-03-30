@@ -27,12 +27,15 @@ export function TopNavBar({ currentView, setView }: TopNavBarProps) {
             Workspace
           </button>
           <button 
-            onClick={() => setView('results')}
-            className={`text-sm tracking-wider transition-colors duration-200 ${currentView === 'results' ? 'text-primary border-b-2 border-primary pb-1' : 'text-outline hover:text-on-surface'}`}
+            onClick={() => setView('history')}
+            className={`text-sm tracking-wider transition-colors duration-200 ${currentView === 'history' ? 'text-primary border-b-2 border-primary pb-1' : 'text-outline hover:text-on-surface'}`}
           >
             History
           </button>
-          <button className="text-outline font-body text-sm tracking-wider hover:text-on-surface transition-colors duration-200">
+          <button
+            onClick={() => setView('docs')}
+            className={`text-sm tracking-wider transition-colors duration-200 ${currentView === 'docs' ? 'text-primary border-b-2 border-primary pb-1' : 'text-outline hover:text-on-surface'}`}
+          >
             Docs
           </button>
         </div>

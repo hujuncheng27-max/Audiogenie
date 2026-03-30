@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Play, Pause, Download, Share2, MoreHorizontal, ChevronRight, Layers, Maximize2, Activity } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Artifact } from '../types';
 import { TrackCard } from './TrackCard';
-import { exportGeneration } from '../services/api';
+import { exportGeneration, getGenerationById } from '../services/api';
 
 interface ResultsViewProps {
   artifacts: Artifact[];
@@ -19,17 +19,64 @@ export function ResultsView({ artifacts }: ResultsViewProps) {
   const [playingTrack, setPlayingTrack] = useState<string | null>(null);
   const [iteration, setIteration] = useState('A');
   const [isExporting, setIsExporting] = useState(false);
+  const [selectedArtifact, setSelectedArtifact] = useState<Artifact | null>(artifacts[0] || null);
+
+  useEffect(() => {
+    if (artifacts.length === 0) {
+      setSelectedTrack('');
+      setSelectedArtifact(null);
+      return;
+    }
+
+    const selectedStillExists = artifacts.some((artifact) => artifact.id === selectedTrack);
+    if (!selectedTrack || !selectedStillExists) {
+      setSelectedTrack(artifacts[0].id);
+      setSelectedArtifact(artifacts[0]);
+    }
+  }, [artifacts, selectedTrack]);
+
+  useEffect(() => {
+    if (!selectedTrack) {
+      return;
+    }
+
+    const fallbackArtifact = artifacts.find((artifact) => artifact.id === selectedTrack) || null;
+    setSelectedArtifact(fallbackArtifact);
+
+    let isCancelled = false;
+
+    const loadGenerationDetail = async () => {
+      try {
+        const response = await getGenerationById(selectedTrack);
+        if (!isCancelled && response.artifact) {
+          setSelectedArtifact(response.artifact);
+        }
+      } catch (error) {
+        console.error('Failed to load generation detail:', error);
+      }
+    };
+
+    loadGenerationDetail();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [artifacts, selectedTrack]);
 
   const togglePlay = (id: string) => {
     setPlayingTrack(playingTrack === id ? null : id);
   };
 
   const handleExport = async () => {
+    if (!selectedTrack) {
+      alert('No generated track is available to export yet.');
+      return;
+    }
+
     setIsExporting(true);
     try {
       const res = await exportGeneration(selectedTrack);
-      console.log('Export URL:', res.url);
-      alert(`Master export initiated for track ${selectedTrack}. URL: ${res.url}`);
+      window.open(res.url, '_blank', 'noopener,noreferrer');
     } catch (error) {
       console.error('Export failed:', error);
       alert('Failed to export master. Please try again.');
@@ -104,8 +151,12 @@ export function ResultsView({ artifacts }: ResultsViewProps) {
                 </button>
               </div>
               <div className="text-center">
-                <h3 className="font-headline text-2xl font-bold mb-1 uppercase tracking-tight text-on-surface">Final Mix v1.4</h3>
-                <p className="font-label text-xs text-outline uppercase tracking-widest">Master Output // 02:45.00s</p>
+                <h3 className="font-headline text-2xl font-bold mb-1 uppercase tracking-tight text-on-surface">
+                  {selectedArtifact?.title || 'Final Mix'}
+                </h3>
+                <p className="font-label text-xs text-outline uppercase tracking-widest">
+                  {(selectedArtifact?.type || 'Master Output')} // {selectedArtifact?.duration || '00:00.0s'}
+                </p>
               </div>
               
               <div className="w-full space-y-4">

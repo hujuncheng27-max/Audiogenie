@@ -5,18 +5,22 @@
 
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { View, Artifact, GenerationPayload } from './types';
+import { View, Artifact, GenerationPayload, ActiveGeneration } from './types';
 import { TopNavBar } from './components/TopNavBar';
 import { Footer } from './components/Footer';
 import { Workspace } from './components/Workspace';
 import { ProcessingView } from './components/ProcessingView';
 import { ResultsView } from './components/ResultsView';
+import { HistoryView } from './components/HistoryView';
+import { DocsView } from './components/DocsView';
 import { getGenerations, createGeneration, pollGenerationStatus } from './services/api';
 
 export default function App() {
   const [view, setView] = useState<View>('workspace');
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [loading, setLoading] = useState(true);
+  const [workspaceVersion, setWorkspaceVersion] = useState(0);
+  const [activeGeneration, setActiveGeneration] = useState<ActiveGeneration | null>(null);
 
   // Fetch initial generations on mount
   useEffect(() => {
@@ -37,47 +41,47 @@ export default function App() {
     setView('processing');
     
     try {
-      // 1. Create the generation job
       const response = await createGeneration(payload);
-      
-      // 2. Poll for status (simulated polling logic)
-      // In a real app, this might involve a loop or a websocket
-      const result = await pollGenerationStatus(response.id);
+      setActiveGeneration({
+        id: response.id,
+        status: response.status,
+        payload,
+      });
+      const result = await pollGenerationStatus(response.id, (update) => {
+        setActiveGeneration({
+          id: update.id,
+          status: update.status,
+          payload,
+        });
+      });
       
       if (result.status === 'completed' && result.artifact) {
-        setArtifacts(prev => [result.artifact!, ...prev]);
+        const refreshedArtifacts = await getGenerations();
+        setArtifacts(refreshedArtifacts);
+        setActiveGeneration({
+          id: result.id,
+          status: result.status,
+          payload,
+        });
         setView('results');
       } else {
-        // Handle failure
         console.error('Generation failed or returned incomplete data');
+        alert('Generation did not complete successfully. Please try again.');
+        setActiveGeneration(null);
         setView('workspace');
       }
     } catch (error) {
       console.error('Generation process failed:', error);
+      alert(error instanceof Error ? error.message : 'Generation process failed. Please try again.');
+      setActiveGeneration(null);
       setView('workspace');
     }
   };
 
-  const handleNewGeneration = async () => {
-    // This is just a mock for adding a "new generation" manually
-    // In a real app, this might just reset the workspace or trigger a default generation
-    const mockPayload: GenerationPayload = {
-      prompt: "Manual Generation",
-      outputClass: "Music",
-      languageModel: "English (Studio High-Def)",
-      acousticStyle: "Industrial",
-      duration: 30
-    };
-    
-    try {
-      const response = await createGeneration(mockPayload);
-      const result = await pollGenerationStatus(response.id);
-      if (result.artifact) {
-        setArtifacts(prev => [result.artifact!, ...prev]);
-      }
-    } catch (error) {
-      console.error('Manual generation failed:', error);
-    }
+  const handleNewGeneration = () => {
+    setWorkspaceVersion((current) => current + 1);
+    setActiveGeneration(null);
+    setView('workspace');
   };
 
   if (loading) {
@@ -96,7 +100,7 @@ export default function App() {
         <AnimatePresence mode="wait">
           {view === 'workspace' && (
             <motion.div
-              key="workspace"
+              key={`workspace-${workspaceVersion}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
@@ -107,6 +111,7 @@ export default function App() {
                 onGenerate={handleGenerate} 
                 artifacts={artifacts}
                 onNewGeneration={handleNewGeneration}
+                onViewHistory={() => setView('history')}
               />
             </motion.div>
           )}
@@ -119,7 +124,7 @@ export default function App() {
               transition={{ duration: 0.3 }}
               className="flex-grow flex flex-col"
             >
-              <ProcessingView />
+              <ProcessingView activeGeneration={activeGeneration} />
             </motion.div>
           )}
           {view === 'results' && (
@@ -132,6 +137,30 @@ export default function App() {
               className="flex-grow flex flex-col"
             >
               <ResultsView artifacts={artifacts} />
+            </motion.div>
+          )}
+          {view === 'history' && (
+            <motion.div
+              key="history"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="flex-grow flex flex-col"
+            >
+              <HistoryView artifacts={artifacts} onOpenWorkspace={() => setView('workspace')} />
+            </motion.div>
+          )}
+          {view === 'docs' && (
+            <motion.div
+              key="docs"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="flex-grow flex flex-col"
+            >
+              <DocsView />
             </motion.div>
           )}
         </AnimatePresence>
