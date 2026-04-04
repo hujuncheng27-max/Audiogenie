@@ -1,8 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import upload, generations
+from .services.database import init_db
 
 app = FastAPI(title="AudioGenie API", version="1.0.0")
+
+# Initialise SQLite tables and seed data on startup.
+init_db()
 
 # Configure CORS for local development
 app.add_middleware(

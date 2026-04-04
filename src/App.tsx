@@ -13,6 +13,7 @@ import { ProcessingView } from './components/ProcessingView';
 import { ResultsView } from './components/ResultsView';
 import { HistoryView } from './components/HistoryView';
 import { DocsView } from './components/DocsView';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { getGenerations, createGeneration, pollGenerationStatus } from './services/api';
 
 export default function App() {
@@ -96,6 +97,7 @@ export default function App() {
     <div className="min-h-screen bg-background text-on-surface font-body selection:bg-primary/30 flex flex-col">
       <TopNavBar currentView={view} setView={setView} />
 
+      <ErrorBoundary>
       <main className="flex-grow flex flex-col">
         <AnimatePresence mode="wait">
           {view === 'workspace' && (
@@ -165,6 +167,7 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
+      </ErrorBoundary>
 
       <Footer />
     </div>

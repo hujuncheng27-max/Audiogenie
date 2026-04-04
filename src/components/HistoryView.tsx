@@ -3,10 +3,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
-import { Archive, CalendarClock, Download, Layers, Play, Waves } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Archive, ArrowDownAZ, ArrowUpAZ, CalendarClock, Download, Filter, Layers, Play, Search, Waves, X } from 'lucide-react';
 import { Artifact } from '../types';
 import { exportGeneration, getGenerationById } from '../services/api';
+
+const ALL_TYPES = ['All', 'SFX', 'Speech', 'Music', 'Atmosphere'] as const;
+type SortField = 'title' | 'type' | 'duration';
+type SortDir = 'asc' | 'desc';
+
+function parseDuration(d: string): number {
+  // "00:12.4s" or "01:30.0s" → seconds as float
+  const cleaned = d.replace(/s$/i, '');
+  const parts = cleaned.split(':');
+  if (parts.length === 2) {
+    return parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
+  }
+  return parseFloat(cleaned) || 0;
+}
 
 interface HistoryViewProps {
   artifacts: Artifact[];
@@ -17,6 +31,51 @@ export function HistoryView({ artifacts, onOpenWorkspace }: HistoryViewProps) {
   const [selectedTrack, setSelectedTrack] = useState(artifacts[0]?.id || '');
   const [selectedArtifact, setSelectedArtifact] = useState<Artifact | null>(artifacts[0] || null);
   const [isExporting, setIsExporting] = useState(false);
+
+  // Filter & sort state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('All');
+  const [sortField, setSortField] = useState<SortField>('title');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+  const filteredArtifacts = useMemo(() => {
+    let result = artifacts;
+
+    // Type filter
+    if (typeFilter !== 'All') {
+      result = result.filter((a) => a.type === typeFilter);
+    }
+
+    // Search by title (case-insensitive)
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter((a) => a.title.toLowerCase().includes(q));
+    }
+
+    // Sort
+    result = [...result].sort((a, b) => {
+      let cmp = 0;
+      if (sortField === 'title') {
+        cmp = a.title.localeCompare(b.title);
+      } else if (sortField === 'type') {
+        cmp = a.type.localeCompare(b.type);
+      } else if (sortField === 'duration') {
+        cmp = parseDuration(a.duration) - parseDuration(b.duration);
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+
+    return result;
+  }, [artifacts, typeFilter, searchQuery, sortField, sortDir]);
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('asc');
+    }
+  };
 
   useEffect(() => {
     if (artifacts.length === 0) {
@@ -76,6 +135,8 @@ export function HistoryView({ artifacts, onOpenWorkspace }: HistoryViewProps) {
     }
   };
 
+  const hasActiveFilters = searchQuery.trim() !== '' || typeFilter !== 'All';
+
   return (
     <div className="p-8 md:p-12 max-w-[1600px] mx-auto w-full space-y-12">
       <header className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 border-l-4 border-primary pl-6">
@@ -104,29 +165,118 @@ export function HistoryView({ artifacts, onOpenWorkspace }: HistoryViewProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <section className="lg:col-span-4 space-y-6">
+          {/* Archive Summary */}
           <div className="bg-surface-container p-6 rounded-xl space-y-4">
             <h2 className="font-label text-xs font-bold uppercase tracking-widest text-outline flex items-center gap-2">
               <Archive size={14} /> Archive Summary
             </h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-surface-container-lowest rounded-lg p-4">
-                <p className="text-[10px] uppercase tracking-widest text-outline mb-2">Artifacts</p>
+                <p className="text-[10px] uppercase tracking-widest text-outline mb-2">Total</p>
                 <p className="text-2xl font-headline font-bold text-on-surface">{artifacts.length}</p>
               </div>
               <div className="bg-surface-container-lowest rounded-lg p-4">
-                <p className="text-[10px] uppercase tracking-widest text-outline mb-2">Selected</p>
-                <p className="text-sm font-headline font-bold text-on-surface uppercase truncate">{selectedArtifact?.id || 'None'}</p>
+                <p className="text-[10px] uppercase tracking-widest text-outline mb-2">Showing</p>
+                <p className="text-2xl font-headline font-bold text-on-surface">
+                  {filteredArtifacts.length}
+                  {hasActiveFilters && (
+                    <span className="text-xs text-outline font-normal ml-1">/ {artifacts.length}</span>
+                  )}
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="space-y-3 overflow-y-auto max-h-[640px] pr-2 no-scrollbar">
-            {artifacts.length === 0 ? (
-              <div className="bg-surface-container-low rounded-xl p-6 text-sm text-on-surface-variant">
-                No completed generations yet. Create one from the workspace to populate the archive.
+          {/* Search, Filter & Sort Controls */}
+          <div className="bg-surface-container p-5 rounded-xl space-y-4">
+            {/* Search */}
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by title..."
+                className="w-full bg-surface-container-lowest text-xs font-body text-on-surface pl-9 pr-8 py-2.5 rounded-lg border border-outline-variant/10 placeholder:text-outline/40 focus:outline-none focus:border-primary/40"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Type filter chips */}
+            <div className="space-y-2">
+              <p className="font-label text-[10px] uppercase tracking-widest text-outline flex items-center gap-1.5">
+                <Filter size={10} /> Type
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {ALL_TYPES.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setTypeFilter(t)}
+                    className={`px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider transition-all ${
+                      typeFilter === t
+                        ? 'bg-primary text-on-primary'
+                        : 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Sort buttons */}
+            <div className="space-y-2">
+              <p className="font-label text-[10px] uppercase tracking-widest text-outline flex items-center gap-1.5">
+                {sortDir === 'asc' ? <ArrowDownAZ size={10} /> : <ArrowUpAZ size={10} />} Sort By
+              </p>
+              <div className="flex gap-1.5">
+                {([['title', 'Title'], ['type', 'Type'], ['duration', 'Duration']] as const).map(([field, label]) => (
+                  <button
+                    key={field}
+                    onClick={() => toggleSort(field)}
+                    className={`px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider transition-all flex items-center gap-1 ${
+                      sortField === field
+                        ? 'bg-primary text-on-primary'
+                        : 'bg-surface-container-highest text-on-surface-variant hover:bg-surface-container-high'
+                    }`}
+                  >
+                    {label}
+                    {sortField === field && (
+                      <span className="text-[8px]">{sortDir === 'asc' ? '\u2191' : '\u2193'}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Clear all filters */}
+            {hasActiveFilters && (
+              <button
+                onClick={() => { setSearchQuery(''); setTypeFilter('All'); }}
+                className="text-[10px] uppercase tracking-widest text-primary hover:underline font-bold"
+              >
+                Clear All Filters
+              </button>
+            )}
+          </div>
+
+          {/* Artifact list */}
+          <div className="space-y-3 overflow-y-auto max-h-[480px] pr-2 no-scrollbar">
+            {filteredArtifacts.length === 0 ? (
+              <div className="bg-surface-container-low rounded-xl p-6 text-sm text-on-surface-variant text-center">
+                {artifacts.length === 0
+                  ? 'No completed generations yet. Create one from the workspace to populate the archive.'
+                  : 'No artifacts match the current filters.'}
               </div>
             ) : (
-              artifacts.map((artifact) => (
+              filteredArtifacts.map((artifact) => (
                 <button
                   key={artifact.id}
                   onClick={() => setSelectedTrack(artifact.id)}

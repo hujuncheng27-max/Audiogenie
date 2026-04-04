@@ -1,14 +1,22 @@
 import uuid
-from typing import Dict
+from .database import get_connection
+
 
 class StorageService:
-    def __init__(self):
-        # In-memory storage for uploaded file references
-        self.files: Dict[str, str] = {}
+    """Upload reference storage backed by SQLite."""
 
     def save_file(self, filename: str) -> str:
         ref = f"ref_{uuid.uuid4().hex}"
-        self.files[ref] = filename
+        conn = get_connection()
+        try:
+            conn.execute(
+                "INSERT INTO uploads (ref, filename) VALUES (?, ?)",
+                (ref, filename),
+            )
+            conn.commit()
+        finally:
+            conn.close()
         return ref
+
 
 storage_service = StorageService()
