@@ -3,20 +3,40 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Artifact, GenerationPayload, GenerationResponse } from '../types';
+import { Artifact, GenerationConfig, GenerationPayload, GenerationResponse } from '../types';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
 const DEFAULT_POLL_INTERVAL_MS = 1200;
 const DEFAULT_POLL_TIMEOUT_MS = 45000;
 
+export class ApiError extends Error {
+  status?: number;
+  path: string;
+
+  constructor(message: string, path: string, status?: number, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'ApiError';
+    this.path = path;
+    this.status = status;
+  }
+}
+
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      Accept: 'application/json',
-      ...(init?.headers || {}),
-    },
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        Accept: 'application/json',
+        ...(init?.headers || {}),
+      },
+    });
+  } catch (error) {
+    throw new ApiError('Unable to reach the AudioGenie backend.', path, undefined, {
+      cause: error instanceof Error ? error : undefined,
+    });
+  }
 
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`;
@@ -30,7 +50,7 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
       // Fall back to the default error message when the response is not JSON.
     }
 
-    throw new Error(message);
+    throw new ApiError(message, path, response.status);
   }
 
   return response.json() as Promise<T>;
@@ -92,8 +112,15 @@ export async function getGenerationById(id: string): Promise<GenerationResponse>
 /**
  * Exports a generation (e.g., triggers a download or returns a URL).
  */
-export async function exportGeneration(id: string): Promise<{ url: string }> {
-  return apiRequest<{ url: string }>(`/generations/${id}/export`, {
+export async function exportGeneration(id: string, config: Pick<GenerationConfig, 'exportFormat' | 'outputSampleRate' | 'bitDepth' | 'channels'>): Promise<{ url: string }> {
+  const params = new URLSearchParams({
+    format: config.exportFormat,
+    sample_rate: config.outputSampleRate,
+    bit_depth: config.bitDepth,
+    channels: config.channels,
+  });
+
+  return apiRequest<{ url: string }>(`/generations/${id}/export?${params.toString()}`, {
     method: 'POST',
   });
 }

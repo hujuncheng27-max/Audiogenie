@@ -5,20 +5,28 @@
 
 import React, { useState } from 'react';
 import { PlusCircle, Waves, Music2, Download } from 'lucide-react';
-import { Artifact, GenerationPayload } from '../types';
+import { Artifact, GenerationConfig, GenerationDraft } from '../types';
 import { UploadSection } from './UploadSection';
 import { OutputConfigSection } from './OutputConfigSection';
 import { JobSummarySection } from './JobSummarySection';
-import { uploadVideo, uploadImage } from '../services/api';
 
 interface WorkspaceProps {
-  onGenerate: (payload: GenerationPayload) => void;
+  onGenerate: (request: GenerationDraft) => Promise<void>;
   artifacts: Artifact[];
   onNewGeneration: () => void;
   onViewHistory: () => void;
+  generationConfig: GenerationConfig;
+  onGenerationConfigChange: (config: GenerationConfig) => void;
 }
 
-export function Workspace({ onGenerate, artifacts, onNewGeneration, onViewHistory }: WorkspaceProps) {
+export function Workspace({
+  onGenerate,
+  artifacts,
+  onNewGeneration,
+  onViewHistory,
+  generationConfig,
+  onGenerationConfigChange,
+}: WorkspaceProps) {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -26,40 +34,28 @@ export function Workspace({ onGenerate, artifacts, onNewGeneration, onViewHistor
   const [languageModel, setLanguageModel] = useState("English (Studio High-Def)");
   const [acousticStyle, setAcousticStyle] = useState("Industrial");
   const [duration, setDuration] = useState(15);
-  const [isUploading, setIsUploading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleGenerateClick = async () => {
-    setIsUploading(true);
+    setIsSubmitting(true);
     try {
-      let videoRef: string | undefined;
-      let imageRef: string | undefined;
-
-      if (videoFile) {
-        const res = await uploadVideo(videoFile);
-        videoRef = res.ref;
-      }
-
-      if (imageFile) {
-        const res = await uploadImage(imageFile);
-        imageRef = res.ref;
-      }
-
-      const payload: GenerationPayload = {
+      const request: GenerationDraft = {
         prompt,
         outputClass,
         languageModel,
         acousticStyle,
         duration,
-        videoRef,
-        imageRef
+        videoFile,
+        imageFile,
+        config: generationConfig,
+        requestedAt: new Date().toISOString(),
       };
 
-      onGenerate(payload);
+      await onGenerate(request);
     } catch (error) {
-      console.error('Upload failed:', error);
-      alert(error instanceof Error ? error.message : 'Failed to upload files. Please try again.');
+      console.error('Workspace submission failed:', error);
     } finally {
-      setIsUploading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -94,6 +90,8 @@ export function Workspace({ onGenerate, artifacts, onNewGeneration, onViewHistor
             setAcousticStyle={setAcousticStyle}
             duration={duration}
             setDuration={setDuration}
+            generationConfig={generationConfig}
+            onGenerationConfigChange={onGenerationConfigChange}
           />
         </section>
 
@@ -106,7 +104,8 @@ export function Workspace({ onGenerate, artifacts, onNewGeneration, onViewHistor
             outputClass={outputClass}
             acousticStyle={acousticStyle}
             onGenerate={handleGenerateClick}
-            isProcessing={isUploading}
+            isProcessing={isSubmitting}
+            generationConfig={generationConfig}
           />
         </section>
       </div>
@@ -118,6 +117,15 @@ export function Workspace({ onGenerate, artifacts, onNewGeneration, onViewHistor
           <button onClick={onViewHistory} className="text-[10px] uppercase font-bold text-primary tracking-widest hover:underline">View All History</button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {artifacts.length === 0 && (
+            <div className="md:col-span-2 lg:col-span-3 bg-surface-container-low rounded-xl border border-outline-variant/10 p-8 text-center space-y-3">
+              <p className="text-sm font-bold uppercase tracking-widest text-on-surface">No Local History Yet</p>
+              <p className="text-sm text-on-surface-variant max-w-2xl mx-auto">
+                Completed generations will appear here and stay on this browser/device using local storage.
+              </p>
+            </div>
+          )}
+
           {artifacts.map((art) => (
             <div key={art.id} className="bg-surface-container-low group hover:bg-surface-container-high p-4 rounded-lg flex flex-col gap-4 transition-all border border-transparent hover:border-outline-variant/20">
               <div className="flex justify-between items-start">
@@ -128,11 +136,17 @@ export function Workspace({ onGenerate, artifacts, onNewGeneration, onViewHistor
                   <div>
                     <h3 className="text-sm font-bold text-on-surface uppercase tracking-tighter">{art.title}</h3>
                     <p className="text-[9px] text-outline uppercase">{art.type} // {art.duration}</p>
+                    <p className="text-[10px] text-outline">{new Date(art.createdAt).toLocaleString()}</p>
                   </div>
                 </div>
-                <button className="text-outline hover:text-primary transition-colors">
+                <div className="flex items-center gap-2">
+                  {art.runtimeMode === 'demo' && (
+                    <span className="text-[9px] uppercase tracking-widest text-tertiary font-bold">Demo</span>
+                  )}
+                  <button className="text-outline hover:text-primary transition-colors">
                   <Download size={16} />
-                </button>
+                  </button>
+                </div>
               </div>
               <div className="h-12 w-full flex items-end gap-[1px]">
                 {art.heights.length > 0 ? (

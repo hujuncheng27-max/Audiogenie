@@ -124,12 +124,17 @@ class GenerationService:
         finally:
             conn.close()
 
-    def build_mock_export(self, job_id: str) -> bytes:
+    def build_mock_export(
+        self,
+        job_id: str,
+        sample_rate: int = 22050,
+        bit_depth: int = 16,
+        channels: int = 1,
+    ) -> bytes:
         job = self.get_job(job_id)
         if not job or job.status != GenerationStatus.COMPLETED or not job.artifact:
             raise ValueError("Generation is not ready for export")
 
-        sample_rate = 22050
         duration_seconds = 1.2
         total_frames = int(sample_rate * duration_seconds)
         tone_seed = sum(ord(char) for char in job_id[-4:])
@@ -138,14 +143,17 @@ class GenerationService:
 
         buffer = io.BytesIO()
         with wave.open(buffer, "wb") as wav_file:
-            wav_file.setnchannels(1)
-            wav_file.setsampwidth(2)
+            sample_width = max(2, bit_depth // 8)
+            wav_file.setnchannels(channels)
+            wav_file.setsampwidth(sample_width)
             wav_file.setframerate(sample_rate)
 
             frames = bytearray()
             for index in range(total_frames):
                 sample = int(amplitude * math.sin((2 * math.pi * frequency * index) / sample_rate))
-                frames.extend(sample.to_bytes(2, byteorder="little", signed=True))
+                sample_bytes = sample.to_bytes(sample_width, byteorder="little", signed=True)
+                for _ in range(channels):
+                    frames.extend(sample_bytes)
 
             wav_file.writeframes(bytes(frames))
 

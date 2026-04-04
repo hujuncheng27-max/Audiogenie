@@ -50,11 +50,14 @@ export function ProcessingView({ activeGeneration }: ProcessingViewProps) {
   const isProcessing = status === 'processing';
   const isCompleted = status === 'completed';
   const promptPreview = activeGeneration?.payload.prompt?.trim() || 'No prompt supplied';
-  const inputSource = activeGeneration?.payload.videoRef
-    ? 'Uploaded video'
-    : activeGeneration?.payload.imageRef
-      ? 'Uploaded image'
+  const config = activeGeneration?.payload.config;
+  const inputSource = activeGeneration?.payload.videoFileName
+    ? `Video: ${activeGeneration.payload.videoFileName}`
+    : activeGeneration?.payload.imageFileName
+      ? `Image: ${activeGeneration.payload.imageFileName}`
       : 'Prompt only';
+  const runtimeModeLabel = activeGeneration?.runtimeMode === 'demo' ? 'Demo Preview' : 'Live Backend';
+  const statusMessage = activeGeneration?.statusMessage || 'Preparing AudioGenie generation pipeline.';
 
   return (
     <div className="p-8 md:p-12 max-w-7xl mx-auto w-full space-y-12">
@@ -72,6 +75,11 @@ export function ProcessingView({ activeGeneration }: ProcessingViewProps) {
             {statusLabel} // {progress}% Complete
           </span>
         </div>
+        <div className="mt-4 inline-flex items-center gap-3 rounded-full border border-outline-variant/15 bg-surface-container px-4 py-2">
+          <span className={`w-2 h-2 rounded-full ${activeGeneration?.runtimeMode === 'demo' ? 'bg-secondary-fixed-dim' : 'bg-primary'}`}></span>
+          <span className="text-[10px] uppercase tracking-widest text-on-surface">{runtimeModeLabel}</span>
+        </div>
+        <p className="mt-4 max-w-3xl text-sm text-on-surface-variant">{statusMessage}</p>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -133,11 +141,13 @@ export function ProcessingView({ activeGeneration }: ProcessingViewProps) {
               <div className="flex gap-8">
                 <div>
                   <span className="block font-label text-[10px] uppercase text-outline tracking-widest mb-1">Current Frequency</span>
-                  <span className="font-mono text-sm text-on-surface">{isPending ? 'Standby' : isCompleted ? 'Stable' : '14.2 kHz'}</span>
+                  <span className="font-mono text-sm text-on-surface">{isPending ? 'Standby' : isCompleted ? 'Stable' : config?.outputSampleRate || '48 kHz'}</span>
                 </div>
                 <div>
-                  <span className="block font-label text-[10px] uppercase text-outline tracking-widest mb-1">Latency</span>
-                  <span className="font-mono text-sm text-on-surface">{isPending ? 'Queued' : isCompleted ? '0ms' : '12ms'}</span>
+                  <span className="block font-label text-[10px] uppercase text-outline tracking-widest mb-1">Refinement</span>
+                  <span className="font-mono text-sm text-on-surface">
+                    {isPending ? 'Queued' : config?.qualityMode === 'fast' ? 'Low' : config?.qualityMode === 'high-quality' ? 'High' : 'Balanced'}
+                  </span>
                 </div>
               </div>
               <div className="bg-surface-container-highest border border-outline-variant/15 text-on-surface px-4 py-2 rounded text-xs font-bold uppercase tracking-widest">
@@ -156,17 +166,23 @@ export function ProcessingView({ activeGeneration }: ProcessingViewProps) {
                 <dd className="font-body text-xs text-on-surface font-medium text-right">{inputSource}</dd>
               </div>
               <div className="flex justify-between gap-4">
-                <dt className="font-label text-[10px] text-outline uppercase">Sample Rate</dt>
-                <dd className="font-body text-xs text-on-surface font-medium text-right">48 kHz / 24-bit</dd>
+                <dt className="font-label text-[10px] text-outline uppercase">Execution Mode</dt>
+                <dd className="font-body text-xs text-on-surface font-medium text-right">{runtimeModeLabel}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="font-label text-[10px] text-outline uppercase">Render Format</dt>
+                <dd className="font-body text-xs text-on-surface font-medium text-right">
+                  {config ? `${config.outputSampleRate} / ${config.bitDepth}` : '48 kHz / 24-bit'}
+                </dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="font-label text-[10px] text-outline uppercase">Target Model</dt>
                 <dd className="font-body text-xs text-on-surface font-medium text-right">{activeGeneration?.payload.languageModel || 'Genie-V3-Pro'}</dd>
               </div>
               <div className="flex justify-between gap-4">
-                <dt className="font-label text-[10px] text-outline uppercase">Output Format</dt>
+                <dt className="font-label text-[10px] text-outline uppercase">Output Profile</dt>
                 <dd className="font-body text-xs text-on-surface font-medium text-right">
-                  {activeGeneration ? `${activeGeneration.payload.outputClass} / ${activeGeneration.payload.duration}s` : 'FLAC (Lossless)'}
+                  {activeGeneration ? `${activeGeneration.payload.outputClass} / ${config?.channels || 'Stereo'} / ${config?.exportFormat || 'WAV'}` : 'WAV'}
                 </dd>
               </div>
             </dl>
@@ -182,15 +198,19 @@ export function ProcessingView({ activeGeneration }: ProcessingViewProps) {
               <p><span className="text-outline">[LIVE]</span> PROMPT PROFILE: {promptPreview.slice(0, 48).toUpperCase()}{promptPreview.length > 48 ? '...' : ''}</p>
               <p><span className="text-outline">[LIVE]</span> OUTPUT CLASS: {(activeGeneration?.payload.outputClass || 'Unknown').toUpperCase()}.</p>
               <p className="text-primary"><span className="text-outline">[LIVE]</span> CURRENT STATUS: {(status || 'pending').toUpperCase()}.</p>
+              <p><span className="text-outline">[LIVE]</span> QUALITY MODE: {(config?.qualityMode || 'balanced').toUpperCase()}.</p>
               <p><span className="text-outline">[LIVE]</span> ACOUSTIC STYLE: {(activeGeneration?.payload.acousticStyle || 'Default').toUpperCase()}.</p>
               <p><span className="text-outline">[LIVE]</span> TARGET DURATION: {activeGeneration?.payload.duration || 0}S.</p>
               <p><span className="text-outline">[LIVE]</span> LANGUAGE MODEL: {(activeGeneration?.payload.languageModel || 'Default').toUpperCase()}.</p>
+              <p><span className="text-outline">[LIVE]</span> OUTPUT SAMPLE RATE: {(config?.outputSampleRate || '48 kHz').toUpperCase()}.</p>
+              <p><span className="text-outline">[LIVE]</span> BIT DEPTH / CHANNELS: {(config?.bitDepth || '24 bit').toUpperCase()} / {(config?.channels || 'Stereo').toUpperCase()}.</p>
               <p><span className="text-outline">[LIVE]</span> VISUAL CONDITIONING: {(activeGeneration?.payload.videoRef || activeGeneration?.payload.imageRef) ? 'ATTACHED' : 'NONE'}.</p>
+              <p className={activeGeneration?.runtimeMode === 'demo' ? 'text-secondary-fixed-dim' : ''}><span className="text-outline">[LIVE]</span> EXECUTION MODE: {runtimeModeLabel.toUpperCase()}.</p>
               <p className={isProcessing ? 'animate-pulse' : ''}><span className="text-outline">[LIVE]</span> PIPELINE HEARTBEAT ACTIVE.</p>
               <div className="pt-2 border-t border-outline-variant/10 mt-2">
                 <div className="flex items-center gap-2">
                   <span className="w-1 h-3 bg-primary animate-bounce"></span>
-                  <span className="text-primary italic">{isCompleted ? 'Artifact ready for results view.' : 'Awaiting next status update...'}</span>
+                  <span className="text-primary italic">{isCompleted ? 'Artifact ready for results view.' : statusMessage}</span>
                 </div>
               </div>
             </div>

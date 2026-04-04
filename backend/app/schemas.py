@@ -15,6 +15,15 @@ class Artifact(BaseModel):
     duration: str
     heights: List[int]
 
+class GenerationConfig(BaseModel):
+    qualityMode: str
+    outputSampleRate: str
+    bitDepth: str
+    channels: str
+    exportFormat: str
+    keepHistory: str
+    autoExportOnComplete: bool
+
 class GenerationPayload(BaseModel):
     prompt: str
     outputClass: str
@@ -23,6 +32,7 @@ class GenerationPayload(BaseModel):
     duration: int
     videoRef: Optional[str] = None
     imageRef: Optional[str] = None
+    config: Optional[GenerationConfig] = None
 
 class GenerationResponse(BaseModel):
     id: str

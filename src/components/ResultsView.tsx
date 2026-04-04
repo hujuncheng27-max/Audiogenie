@@ -6,15 +6,16 @@
 import React, { useEffect, useState } from 'react';
 import { Play, Pause, Download, Share2, MoreHorizontal, ChevronRight, Layers, Maximize2, Activity } from 'lucide-react';
 import { motion } from 'motion/react';
-import { Artifact } from '../types';
+import { AppNotice, Artifact } from '../types';
 import { TrackCard } from './TrackCard';
-import { exportGeneration, getGenerationById } from '../services/api';
 
 interface ResultsViewProps {
   artifacts: Artifact[];
+  onExport: (id: string) => Promise<{ url: string }>;
+  onNotify: (tone: AppNotice['tone'], title: string, message: string) => void;
 }
 
-export function ResultsView({ artifacts }: ResultsViewProps) {
+export function ResultsView({ artifacts, onExport, onNotify }: ResultsViewProps) {
   const [selectedTrack, setSelectedTrack] = useState(artifacts[0]?.id || '1');
   const [playingTrack, setPlayingTrack] = useState<string | null>(null);
   const [iteration, setIteration] = useState('A');
@@ -37,30 +38,11 @@ export function ResultsView({ artifacts }: ResultsViewProps) {
 
   useEffect(() => {
     if (!selectedTrack) {
+      setSelectedArtifact(null);
       return;
     }
 
-    const fallbackArtifact = artifacts.find((artifact) => artifact.id === selectedTrack) || null;
-    setSelectedArtifact(fallbackArtifact);
-
-    let isCancelled = false;
-
-    const loadGenerationDetail = async () => {
-      try {
-        const response = await getGenerationById(selectedTrack);
-        if (!isCancelled && response.artifact) {
-          setSelectedArtifact(response.artifact);
-        }
-      } catch (error) {
-        console.error('Failed to load generation detail:', error);
-      }
-    };
-
-    loadGenerationDetail();
-
-    return () => {
-      isCancelled = true;
-    };
+    setSelectedArtifact(artifacts.find((artifact) => artifact.id === selectedTrack) || null);
   }, [artifacts, selectedTrack]);
 
   const togglePlay = (id: string) => {
@@ -69,17 +51,17 @@ export function ResultsView({ artifacts }: ResultsViewProps) {
 
   const handleExport = async () => {
     if (!selectedTrack) {
-      alert('No generated track is available to export yet.');
+      onNotify('warning', 'No track selected', 'Choose a generated track before starting export.');
       return;
     }
 
     setIsExporting(true);
     try {
-      const res = await exportGeneration(selectedTrack);
+      const res = await onExport(selectedTrack);
       window.open(res.url, '_blank', 'noopener,noreferrer');
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Failed to export master. Please try again.');
+      onNotify('warning', 'Export unavailable', 'AudioGenie could not export the current track just yet. Please try again.');
     } finally {
       setIsExporting(false);
     }
@@ -90,7 +72,9 @@ export function ResultsView({ artifacts }: ResultsViewProps) {
       <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-l-4 border-primary pl-6">
         <div>
           <h1 className="text-4xl md:text-5xl font-headline font-extrabold tracking-tight text-on-surface uppercase">Synthesis Results</h1>
-          <p className="text-on-surface-variant font-label text-sm tracking-widest uppercase">Batch ID: GEN-992A-X // 4 Artifacts Generated</p>
+          <p className="text-on-surface-variant font-label text-sm tracking-widest uppercase">
+            Local Session Results // {artifacts.length} Saved Artifacts
+          </p>
         </div>
         <div className="flex gap-4">
           <button className="bg-surface-container-high text-on-surface px-6 py-3 rounded font-bold uppercase tracking-widest text-xs hover:bg-surface-container transition-all flex items-center gap-2">
@@ -157,6 +141,11 @@ export function ResultsView({ artifacts }: ResultsViewProps) {
                 <p className="font-label text-xs text-outline uppercase tracking-widest">
                   {(selectedArtifact?.type || 'Master Output')} // {selectedArtifact?.duration || '00:00.0s'}
                 </p>
+                {selectedArtifact?.runtimeMode === 'demo' && (
+                  <p className="mt-3 text-[10px] uppercase tracking-widest text-secondary-fixed-dim font-bold">
+                    Demo Result Stored Locally
+                  </p>
+                )}
               </div>
               
               <div className="w-full space-y-4">

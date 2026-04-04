@@ -7,10 +7,12 @@ import React from 'react';
 import { BookOpenText, Cable, PlaySquare, ServerCog } from 'lucide-react';
 
 const architectureItems = [
+  ['Access Model', 'The public website version does not require login, registration, account profiles, or authentication to create audio.'],
   ['Frontend', 'Vite + React + TypeScript application in src/ with componentized workspace, processing, results, history, and docs views.'],
   ['Backend', 'FastAPI service in backend/app/ that handles uploads, generation creation, polling, history reads, detail reads, and export.'],
+  ['History Storage', 'History is currently stored with a browser-local storage service abstraction, so it persists on one device now and can be replaced by backend persistence later.'],
   ['Generation Engine', 'Current generation behavior is intentionally mock/in-memory so the product flow stays testable while the real algorithm agent layer is built.'],
-  ['API Wiring', 'The frontend uses VITE_API_BASE_URL to call the local backend and now relies on real HTTP requests rather than local fake responses.'],
+  ['API Wiring', 'The frontend uses VITE_API_BASE_URL to call the local backend for upload, generation, polling, and export.'],
 ] as const;
 
 const runSteps = [
@@ -95,8 +97,9 @@ export function DocsView() {
             </div>
             <div className="space-y-4 text-sm text-on-surface-variant leading-relaxed">
               <p>The full local product loop is now runnable: upload, create generation, poll, inspect results, browse history, and export.</p>
+              <p>History is persisted locally on the same browser/device rather than in an account or cloud profile for this version.</p>
               <p>The backend generation logic is still a clear mock service by design, which keeps the UI reliable while the paper-inspired multi-agent pipeline is implemented incrementally.</p>
-              <p>The next safe expansion point is replacing the in-memory generation service with a real orchestration layer while preserving the current API contract.</p>
+              <p>The next safe expansion point is replacing the in-memory generation service and local history storage with a real orchestration layer and backend persistence while preserving the current UI contract.</p>
             </div>
           </div>
         </aside>
