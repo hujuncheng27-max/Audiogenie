@@ -181,7 +181,7 @@ class SFXExpert(BaseExpert):
                 "output": probe_wav_path,
             }
             try:
-                from AudioGenie.tools import run_tool
+                from tools_v2 import run_tool
                 wav_out = run_tool(tool, args, output_wav=probe_wav_path)
                 probe_wav = wav_out if wav_out and os.path.exists(wav_out) else None
                 guess_mp4 = os.path.splitext(probe_wav)[0] + ".mp4" if probe_wav else None

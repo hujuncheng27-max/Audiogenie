@@ -4,7 +4,7 @@ import json, os, pathlib, re
 from llm import LLM
 from plan import Plan, AudioEvent
 from experts import build_expert, BaseExpert
-from tools import ToolLibrary
+from tools_v2 import ToolLibrary
 from critiquers import PlanningCritic, DomainCritic, AudioEvalCritic, LLMPlanningReviewer
 from tot import ToTExecutor
 from mixer import mix_and_maybe_mux

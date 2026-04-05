@@ -2,10 +2,10 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any, Tuple
 import os, uuid, json, copy, shlex, subprocess, re
 
-from tools import ToolLibrary, run_tool, ToolRunError
+from tools_v2 import ToolLibrary, run_tool
+from tool.base import ToolRunError
 from critiquers import AudioEvalCritic
 from llm import LLM
-from tools import _SafeDict
 from critiquers import AudioEvalCritic
 
 
