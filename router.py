@@ -1,6 +1,6 @@
 import yaml
 from llm import (
-    GeminiLLM, OpenaiLLM, NvidiaLLM, HuggingfaceLLM
+    GeminiLLM, OpenaiLLM, NvidiaLLM, HuggingfaceLLM, GradioLLM
 )
 
 
@@ -24,5 +24,7 @@ def load_llm(name: str):
         return NvidiaLLM(model=model, api_key=api_key, base_url=llm_config.get("api_url"))
     elif provider == "huggingface":
         return HuggingfaceLLM(model=model, **llm_config.get("parameters", {}))
+    elif provider == "gradio":
+        return GradioLLM(model=model, **llm_config.get("parameters", {}))
     else:
         raise ValueError(f"Unsupported provider: {provider}")

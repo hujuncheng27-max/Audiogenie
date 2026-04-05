@@ -60,7 +60,23 @@ def run_tool(tool: ToolSpec, args: Dict[str, Any], output_wav: Optional[str] = N
     runtime = getattr(tool, "runtime", None)
     if runtime is None:
         raise RuntimeError(f"Tool '{tool.name}' has no runtime bound in tools_v2")
-    return runtime.run(args or {}, output_wav=output_wav)
+
+    normalized_args = dict(args or {})
+
+    # Backward compatibility: ToT passes refined_inputs as
+    # {"tool_name": {...tool args...}, "out": "..."}. Flatten tool args.
+    tool_specific_args = normalized_args.get(tool.name)
+    if isinstance(tool_specific_args, dict):
+        normalized_args = {k: v for k, v in normalized_args.items() if k != tool.name}
+        normalized_args.update(tool_specific_args)
+
+    # Accept legacy `out`/`output` when caller doesn't pass output_wav explicitly.
+    if output_wav is None:
+        out = normalized_args.get("out") or normalized_args.get("output")
+        if isinstance(out, str) and out.strip():
+            output_wav = out
+
+    return runtime.run(normalized_args, output_wav=output_wav)
 
 
 __all__ = ["ToolLibrary", "run_tool", "ToolSpec"]

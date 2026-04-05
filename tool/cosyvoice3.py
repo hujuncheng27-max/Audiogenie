@@ -15,17 +15,11 @@ class CosyVoice3Tool(GradioTool):
 		return str(
 			args.get("instruct_text")
 			or self.config.get("parameters", {}).get("instruct_text")
-			or "You are a helpful assistant. <|endofprompt|>"
+			or "You are a helpful assistant. Please say a sentence as loudly as possible.<|endofprompt|>"
 		)
 
 	def _ui_lang(self, args: Dict[str, Any]) -> str:
 		return str(args.get("ui_lang") or self.config.get("parameters", {}).get("ui_lang") or "Zh")
-
-	def _stream_value(self, args: Dict[str, Any]) -> str:
-		stream = args.get("stream")
-		if stream is None:
-			stream = self.config.get("parameters", {}).get("stream", "false")
-		return "true" if str(stream).lower() == "true" else "false"
 
 	def _seed_value(self, args: Dict[str, Any]) -> float:
 		seed = args.get("seed", self.config.get("parameters", {}).get("seed", 0))
@@ -39,14 +33,17 @@ class CosyVoice3Tool(GradioTool):
 
 		return handle_file(prompt_wav)
 
-	def _prompt_wav_record(self, prompt_wav: str):
-		from gradio_client import handle_file
-
-		return handle_file(prompt_wav)
-
 	def run(self, args: Dict[str, Any], output_wav: Optional[str] = None) -> str:
 		"""Map project-side TTS args to CosyVoice3's `/generate_audio` API."""
 		args = dict(args or {})
+
+		# Defensive compatibility: callers may pass nested args as
+		# {"tool_name": {...}, "out": "..."}.
+		tool_args = args.get(self.spec.name)
+		if isinstance(tool_args, dict):
+			args = {k: v for k, v in args.items() if k != self.spec.name}
+			args.update(tool_args)
+
 		started = self._log_start(args, output_wav)
 
 		target_text = args.get("target_text") or args.get("text") or args.get("tts_text")
@@ -57,13 +54,11 @@ class CosyVoice3Tool(GradioTool):
 
 		result = self._predict(
 			tts_text=str(target_text),
-			mode_value=self._mode_value(args),
+			mode_value="zero_shot",
 			prompt_text=prompt_text,
 			prompt_wav_upload=self._prompt_wav_upload(prompt_wav),
-			prompt_wav_record=self._prompt_wav_record(prompt_wav),
+			prompt_wav_record=None,
 			instruct_text=self._instruct_text(args),
-			seed=self._seed_value(args),
-			stream=self._stream_value(args),
 			ui_lang=self._ui_lang(args),
 			api_name=self.api_name or "/generate_audio",
 		)

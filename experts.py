@@ -42,6 +42,16 @@ class BaseExpert:
     def has_tool(self, name: str) -> bool:
         return getattr(self.tool_lib, "has")(name)
 
+    def _tools_for_tasks(self, *tasks: str) -> List[str]:
+        """Return tool names whose `task` matches one of the requested task labels."""
+        wanted = {str(t).strip().lower() for t in tasks if str(t).strip()}
+        out: List[str] = []
+        for name, spec in getattr(self.tool_lib, "tools", {}).items():
+            task = str(getattr(spec, "task", "")).strip().lower()
+            if task in wanted:
+                out.append(name)
+        return out
+
     def process_batch(self, events: List[AudioEvent], plan_ctx: Dict[str, Any], llm: LLM) -> List[AudioEvent]:
         raise NotImplementedError
 
@@ -111,10 +121,11 @@ class SFXExpert(BaseExpert):
         return args
 
     def _pick_sfx_models(self, use_video: bool = False) -> List[str]:
+        cands = self._tools_for_tasks("sfx", "sound effect", "sound_effect")
         if use_video:
-            return ["MMAudio"]
-        else:
-            return ["MMAudio"]
+            video_first = [m for m in cands if "mmaudio" in m.lower()]
+            return video_first or cands
+        return cands
 
     def process_batch(self, events: List[AudioEvent], plan_ctx: Dict[str, Any], llm: LLM) -> List[AudioEvent]:
         if not events:
@@ -161,7 +172,7 @@ class SFXExpert(BaseExpert):
 
         probe_wav = None
         probe_mp4 = None
-        if has_video:
+        if has_video and self.has_tool("MMAudio"):
             probe_dir = os.path.join(outdir, "stage2_sfx_probe")
             os.makedirs(probe_dir, exist_ok=True)
             tool = self.tool_lib.get("MMAudio")
@@ -351,22 +362,33 @@ class SpeechExpert(BaseExpert):
             it = idx_map.get(i, {})
             utter = it.get("utterance") or _extract_quoted(e.object) or _extract_quoted(e.description) or (e.description or e.object or "...")
             style = it.get("voice_style") or "neutral narration"
-            cands: List[str] = []
-            if self.has_tool("CosyVoice2"): cands.append("CosyVoice2")
-            if self.has_tool("FireRedTTS"): cands.append("FireRedTTS")
+            cands = self._tools_for_tasks("tts", "speech", "voice")
             e.model_candidates = cands[:2]
             e.refined_inputs = {}
-            if "CosyVoice2" in e.model_candidates:
-                e.refined_inputs["CosyVoice2"] = {
-                    "text": utter,
-                    "prompt_transcript": plan_ctx.get("prompt_transcript", "希望你以后能够做的比我还好呦。"),
-                    "prompt_wav": plan_ctx.get("prompt_wav_path", "bin/cosyvoice/asset/zero_shot_prompt.wav")
-                }
-            if "FireRedTTS" in e.model_candidates:
-                e.refined_inputs["FireRedTTS"] = {
-                    "text": utter,
-                    "style": "narration_warm" if "warm" in style else "narration"
-                }
+            for model_name in e.model_candidates:
+                lname = model_name.lower()
+                if "cosyvoice3" in lname:
+                    e.refined_inputs[model_name] = {
+                        "target_text": utter,
+                        "prompt_text": plan_ctx.get("prompt_transcript", "希望你以后能够做的比我还好呦。"),
+                        "prompt_wav": plan_ctx.get("prompt_wav_path", "bin/zero_shot_prompt.wav")
+                    }
+                elif "cosyvoice2" in lname:
+                    e.refined_inputs[model_name] = {
+                        "text": utter,
+                        "prompt_transcript": plan_ctx.get("prompt_transcript", "希望你以后能够做的比我还好呦。"),
+                        "prompt_wav": plan_ctx.get("prompt_wav_path", "bin/zero_shot_prompt.wav")
+                    }
+                elif "firered" in lname:
+                    e.refined_inputs[model_name] = {
+                        "text": utter,
+                        "style": "narration_warm" if "warm" in style else "narration"
+                    }
+                else:
+                    e.refined_inputs[model_name] = {
+                        "text": utter,
+                        "style": style,
+                    }
             out.append(e)
         return out
 
@@ -400,15 +422,15 @@ class MusicExpert(BaseExpert):
         for i,e in enumerate(events):
             dur = round(_sec(e), 1)
             choice = decided.get(i, {"text": (e.description or "Ambient underscore, unobtrusive."), "chorus": "verse"})
-            cands: List[str] = []
-            if self.has_tool("InspireMusic"): cands.append("InspireMusic")
-            if self.has_tool("MusicGen"):     cands.append("MusicGen")
+            cands = self._tools_for_tasks("music")
             e.model_candidates = cands[:2]
             e.refined_inputs = {}
-            if "InspireMusic" in e.model_candidates:
-                e.refined_inputs["InspireMusic"] = {"text": choice["text"], "seconds": dur, "chorus": choice["chorus"]}
-            if "MusicGen" in e.model_candidates:
-                e.refined_inputs["MusicGen"] = {"text": choice["text"], "seconds": dur}
+            for model_name in e.model_candidates:
+                lname = model_name.lower()
+                if "inspiremusic" in lname:
+                    e.refined_inputs[model_name] = {"text": choice["text"], "seconds": dur, "chorus": choice["chorus"]}
+                else:
+                    e.refined_inputs[model_name] = {"text": choice["text"], "seconds": dur}
             out.append(e)
         return out
 
@@ -482,17 +504,16 @@ class SongExpert(BaseExpert):
                 ref_prompt = (e.description or e.object or "pop, gentle vocal, warm.").strip()
 
             # 3) choose model + refined_inputs
-            cands: List[str] = []
-            if self.has_tool("DiffRhythm"):
-                cands.append("DiffRhythm")
+            cands = self._tools_for_tasks("song", "singing", "vocal", "song_gen")
             e.model_candidates = cands[:1]
             e.refined_inputs = {}
 
             audio_seconds = int(round(dur))
 
-            if "DiffRhythm" in e.model_candidates:
+            if e.model_candidates:
+                model_name = e.model_candidates[0]
                 if ref_audio_path:
-                    e.refined_inputs["DiffRhythm"] = {
+                    e.refined_inputs[model_name] = {
                         "lrc_path": lrc_path,
                         "ref_audio_path": ref_audio_path,
                         "ref_prompt": "",
@@ -501,7 +522,7 @@ class SongExpert(BaseExpert):
                         "chunked": True
                     }
                 else:
-                    e.refined_inputs["DiffRhythm"] = {
+                    e.refined_inputs[model_name] = {
                         "lrc_path": lrc_path,
                         "ref_audio_path": "",
                         "ref_prompt": ref_prompt,

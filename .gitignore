@@ -16,3 +16,4 @@ __pycache__/
 !template/config_template.yaml
 *.pyc
 *.json
+*.wav
