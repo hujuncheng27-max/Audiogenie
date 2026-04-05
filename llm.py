@@ -299,10 +299,10 @@ class HuggingfaceLLM(LLM):
         return output_text[0] if output_text else ""
     
 class GradioLLM(LLM):
-    def __init__(self, model: str = "Qwen/Qwen3.5-Omni-Offline-Demo", hf_token: Optional[str] = None,
+    def __init__(self, model: str = "Qwen/Qwen3.5-Omni-Offline-Demo",
                  **gradio_kwargs):
         self.space = model
-        self.hf_token = hf_token or os.environ.get("HF_TOKEN")
+        self.hf_token = gradio_kwargs.get("hf_token") or os.environ.get("HF_TOKEN")
         self.temperature = gradio_kwargs.get("temperature", 0.7)
         self.top_p = gradio_kwargs.get("top_p", 0.8)
         self.top_k = gradio_kwargs.get("top_k", 20)
@@ -317,7 +317,7 @@ class GradioLLM(LLM):
         kwargs = {}
         if self.hf_token:
             kwargs["hf_token"] = self.hf_token
-        self._client = Client(self.space, **kwargs)
+        self._client = Client(self.space, verbose=True, **kwargs)
 
     def chat(self, system: str, user: str, stop=None, media: Optional[Dict[str, Any]] = None) -> str:
         if self._client is None:
@@ -326,33 +326,30 @@ class GradioLLM(LLM):
         from gradio_client import handle_file
 
         media = media or {}
+        text = media.get("texts") or []
         audio = media.get("audio")
         image = media.get("images")
         video = media.get("videos")
 
         # handle_file wraps a local path or URL; None falls back to a dummy value
         # The API requires all media fields, so pass None-safe defaults
-        audio_input = handle_file(str(audio)) if audio else handle_file(
-            "https://github.com/gradio-app/gradio/raw/main/test/test_files/audio_sample.wav"
-        )
+        audio_input = handle_file(str(audio)) if audio else None
 
         if image:
             image_input = handle_file(str(image[0] if isinstance(image, list) else image))
         else:
-            image_input = handle_file(
-                "https://raw.githubusercontent.com/gradio-app/gradio/main/test/test_files/bus.png"
-            )
+            image_input = None
 
         if video:
             vid_path = str(video[0] if isinstance(video, list) else video)
             video_input = {"video": handle_file(vid_path)}
         else:
-            video_input = {"video": handle_file(
-                "https://github.com/gradio-app/gradio/raw/main/demo/video_component/files/world.mp4"
-            )}
+            video_input = None
+            
+        prompt_text = user + ("\n" + "\n".join(text) if text else "")
 
         result = self._client.predict(
-            text=user,
+            text=prompt_text,
             audio=audio_input,
             image=image_input,
             video=video_input,
@@ -364,4 +361,12 @@ class GradioLLM(LLM):
             api_name="/chat_predict",
         )
         # result[0] is the text response
-        return result[0] if result else ""
+        chat_history = result[-1]
+        if chat_history and isinstance(chat_history, list):
+            last_message = chat_history[-1]
+            if last_message.get("role") == "assistant":
+                # 3. 提取其中的 'content' 字段
+                assistant_response = last_message.get("content")
+                return assistant_response
+        else:
+            raise RuntimeError(f"Unexpected response format from Gradio LLM: {result}")
