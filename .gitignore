@@ -10,3 +10,9 @@ coverage/
 *.db-wal
 *.db-shm
 __pycache__/
+
+# models
+*.yaml
+
+*.pyc
+*.json

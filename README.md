@@ -1,83 +1,128 @@
-# AudioGenie
+# 🎶 AudioGenie: A Training-Free Multi-Agent Framework for Diverse Multimodality-to-Multiaudio Generation
 
-AudioGenie is a full-stack AI audio-generation app with a React + TypeScript frontend and a FastAPI backend.
+[![arXiv](https://img.shields.io/badge/arXiv-2505.22053-brightgreen.svg?style=flat-square)](https://arxiv.org/pdf/2505.22053) 
+[![githubio](https://img.shields.io/badge/GitHub.io-Project-blue?logo=Github&style=flat-square)](https://audiogenie.github.io/)
+[![Hugging Face Dataset](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Dataset-blue)](https://huggingface.co/datasets/ryysayhi/MA-Bench)
+[![github](https://img.shields.io/badge/GitHub-Code-blue?logo=Github&style=flat-square)](https://github.com/ryysayhi/AudioGenie)
 
-## Current Architecture
+---
 
-- Frontend: Vite + React + TypeScript in `src/`
-- Backend: FastAPI in `backend/app/`
-- API base URL: `VITE_API_BASE_URL`, configured locally in `.env.local`
-- Backend storage/generation behavior: in-memory mock services that keep the UI flow working end-to-end
+**This is the official repository for "[AudioGenie: A Training-Free Multi-Agent Framework for Diverse Multimodality-to-Multiaudio Generation](https://arxiv.org/pdf/2505.22053)".**
 
-## Implemented End-to-End Flows
+## 🚀 News
+- **2025-10**: MA-Bench has been released!
+- **2025-07**: AudioGenie has been accepted by ACM MM 2025! We look forward to seeing you in Dublin, Ireland!
 
-- Upload video: `POST /upload/video`
-- Upload image: `POST /upload/image`
-- Create generation: `POST /generations`
-- Poll generation status: `GET /generations/{id}/status`
-- Load history: `GET /generations`
-- Load generation detail: `GET /generations/{id}`
-- Export generated audio: `POST /generations/{id}/export`
 
-## Local Setup
+## ✨ Abstract
 
-### 1. Install dependencies
+Multimodality-to-Multiaudio (MM2MA) generation faces significant challenges in synthesizing diverse and contextually aligned audio types (e.g., sound effects, speech, music, and songs) from multimodal inputs (e.g., video, text, images), owing to the scarcity of high-quality paired datasets and the lack of robust multi-task learning frameworks. Recently, multi-agent system shows great potential in tackling the above issues. However, directly applying it to MM2MA task presents three critical challenges: (1) inadequate fine-grained understanding of multimodal inputs (especially for video), (2) the inability of single models to handle diverse audio events, and (3) the absence of self-correction mechanisms for reliable outputs. 
+To this end, we propose AudioGenie, a novel training-free multi-agent system featuring a dual-layer architecture with a generation team and a supervisor team. For the generation team, a fine-grained task decomposition and an adaptive Mixture-of-Experts (MoE) collaborative entity are designed for detailed comprehensive multimodal understanding and dynamic model selection, and a trial-and-error iterative refinement module is designed for self-correction. The supervisor team ensures temporal-spatial consistency and verifies outputs through feedback loops. Moreover, we build MA-Bench, the first benchmark for MM2MA tasks, comprising 198 annotated videos with multi-type audios. 
+Experiments demonstrate that our AudioGenie achieves state-of-the-art (SOTA) or comparable performance across 9 metrics in 8 tasks. User study further validates the effectiveness of our method in terms of quality, accuracy, alignment, and aesthetic.
 
-Frontend:
 
-```bash
-npm install
+## ✨ Method
+
+<p align="center">
+  <img src="pic/generation.png" width="98%"/>
+</p>
+
+<p align="center"><strong>Overview of the AudioGenie Framework.</strong></p>
+
+
+## 🔮 MA-Bench
+
+The dataset has been released on [Hugging Face](https://huggingface.co/datasets/ryysayhi/MA-Bench).
+
+<p align="center">
+  <img src="pic/dataset.png" width="98%"/>
+</p>
+
+<p align="center"><strong>Statistics of video categories within our MA-Bench.</strong></p>
+
+## 🛠️ Environment Setup
+
+- Create Anaconda Environment:
+  
+  ```bash
+  git clone https://github.com/ryysayhi/AudioGenie.git
+  cd AudioGenie
+  conda create -n AudioGenie python=3.10
+  conda activate AudioGenie
+  pip install -r requirements.txt
+  ```
+- Install ffmpeg:
+  
+  ```bash
+  sudo apt-get install ffmpeg
+  ```
+
+## 📀 Establish Tool Library
+
+- In the `/bin` folder, we provide four examples: [MMAudio](https://github.com/hkchengrex/MMAudio), [CosyVoice](https://github.com/FunAudioLLM/CosyVoice), [InspireMusic](https://github.com/FunAudioLLM/FunMusic), [DiffRhythm](https://github.com/ASLP-lab/DiffRhythm).
+You can clone each project and install it following its own guide. Then set:
+  
+  ```bash
+  export MMAUDIO_HOME=<PATH_TO_MMAUDIO>
+  export COSYVOICE_HOME=<PATH_TO_COSYVOICE>
+  export INSPIREMUSIC_HOME=<PATH_TO_INSPIREMUSIC>
+  export DIFFRHYTHM_HOME=<PATH_TO_DIFFRHYTHM>
+  
+  export MMAUDIO_CONDA=mmaudio
+  export COSYVOICE_CONDA=cosyvoice
+  export INSPIREMUSIC_CONDA=inspiremusic
+  export DIFFRHYTHM_CONDA=diffrhythm
+  ```
+- To extend the library, add your preferred speech / song / music / sound-effect models by defining a `ToolSpec` in `tools.py`, and add a matching `run_model.py` in `/bin`.
+
+## 🎯 Infer
+We use Gemini as the MLLM in this repo. You can swap it for another MLLM (e.g., Qwen2.5-VL, which we used in the paper). 
+- Set your API key for Gemini in `run.py` (or export it as an env var):
+  ```bash
+  os.environ['GEMINI_API_KEY'] = 'Your_Gemini_Api_Key'
+  # or in shell:
+  # export GEMINI_API_KEY=Your_Gemini_Api_Key
+  ```
+
+
+- Run the inference script:
+  ```bash
+  python AudioGenie/run.py \
+    --video <PATH_TO_VIDEO or omit> \
+    --image <PATH_TO_IMAGE or omit> \
+    --text  "<YOUR_TEXT or omit>" \
+    --outdir <OUTPUT_DIR>
+  ```
+
+## 📭 Contact
+
+If you have any comments or questions, feel free to contact me (yrong854@connect.hkust-gz.edu.cn).
+
+## 📚 Citation
+
+If you find our work useful, please consider citing:
+
+```
+@article{rong2025audiogenie,
+  title={AudioGenie: A Training-Free Multi-Agent Framework for Diverse Multimodality-to-Multiaudio Generation},
+  author={Rong, Yan and Wang, Jinting and Lei, Guangzhi and Yang, Shan and Liu, Li},
+  journal={arXiv preprint arXiv:2505.22053},
+  year={2025}
+}
 ```
 
-Backend:
+# Additional Information
+安装cosyvoice时出现setuptool问题 [here](https://github.com/FunAudioLLM/CosyVoice/issues/1844)
 
-```bash
-python -m pip install -r backend/requirements.txt
+修改cuda版本：
+CUDA 11.8
+```cuda 118
+--extra-index-url https://download.pytorch.org/whl/cu118
+--extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-11/pypi/simple
 ```
 
-### 2. Configure environment
-
-The local frontend uses:
-
-```env
-VITE_API_BASE_URL="http://localhost:8000"
+CUDA 12.1
+```cuda 121
+--extra-index-url https://download.pytorch.org/whl/cu121
+--extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple
 ```
-
-This is already set in `.env.local`.
-
-### 3. Start the backend
-
-```bash
-npm run dev:backend
-```
-
-Or directly:
-
-```bash
-python -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-### 4. Start the frontend
-
-In a second terminal:
-
-```bash
-npm run dev:frontend
-```
-
-The frontend runs on `http://localhost:3000`.
-
-## Local Verification Checklist
-
-1. Open `http://localhost:3000`
-2. Confirm the workspace loads existing history cards from the backend
-3. Upload a video or image and enter a prompt
-4. Click `Generate Audio`
-5. Wait for the processing view to finish and transition into results
-6. Confirm the new artifact appears in the results/history list
-7. Click `Export Master` and verify a `.wav` download starts
-
-## Notes
-
-- The backend generation pipeline is still mock/in-memory by design, but the frontend now makes real HTTP requests instead of returning local fake data.
-- Export returns a locally downloadable mock WAV file so the export flow can be tested end-to-end.
