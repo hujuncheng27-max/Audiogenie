@@ -9,6 +9,7 @@ from critiquers import PlanningCritic, DomainCritic, AudioEvalCritic, LLMPlannin
 from tot import ToTExecutor
 from mixer import mix_and_maybe_mux
 from utils.media import probe_video_seconds
+from utils.runtime_logger import log_step
 
 
 def _norm_type(t: str) -> str:
@@ -73,6 +74,7 @@ class GenerationTeam:
         self.tool_lib = tool_lib
 
     def plan(self, multimodal_context: Dict[str, Any]) -> Plan:
+        log_step("Stage-1 planning: building multimodal event plan")
         video_path = (multimodal_context or {}).get("video")
         video_duration = None
         if video_path:
@@ -133,6 +135,7 @@ class GenerationTeam:
 
         cleaned = _to_canonical_plan_json(reply)
         plan = Plan.from_json(cleaned)
+        log_step(f"Stage-1 planning complete: events={len(plan.events)}")
         return plan
 
     def assign_and_refine(
@@ -147,6 +150,7 @@ class GenerationTeam:
         1) SFX 
         2) other expert (speech/song/music)
         """
+        log_step("Stage-2 assign/refine: routing events to experts")
         buckets: Dict[str, List[AudioEvent]] = {"sfx": [], "speech": [], "music": [], "song": []}
         for e in plan.events:
             t = _norm_type(e.audio_type)
@@ -171,6 +175,7 @@ class GenerationTeam:
 
         # SFX
         if buckets["sfx"]:
+            log_step(f"Stage-2 expert run: sfx count={len(buckets['sfx'])}")
             sfx_expert: BaseExpert = build_expert("sound effect", self.tool_lib)
             sfx_out = sfx_expert.process_batch(buckets["sfx"], ctx, self.llm)
             processed.extend(sfx_out)
@@ -180,6 +185,7 @@ class GenerationTeam:
             lst = buckets[key]
             if not lst:
                 continue
+            log_step(f"Stage-2 expert run: {key} count={len(lst)}")
             expert: BaseExpert = build_expert(key, self.tool_lib)
             out_list = expert.process_batch(lst, ctx, self.llm)
             processed.extend(out_list)
@@ -200,6 +206,7 @@ class GenerationTeam:
 
         new_events.sort(key=lambda x: float(x.start_time))
         plan.events = new_events
+        log_step(f"Stage-2 assign/refine complete: events={len(plan.events)}")
         return plan
 
     def collaborative_refine(self, plan: Plan) -> Plan:
@@ -226,10 +233,12 @@ class GenerationTeam:
         max_depth: int = 3,
         max_siblings: int = 3,
     ) -> Dict[str, Any]:
+        log_step("Stage-3 synthesis: launching ToT executor")
         pathlib.Path(outdir).mkdir(parents=True, exist_ok=True)
         executor = ToTExecutor(self.tool_lib, self.llm, eval_critic, max_depth=max_depth, max_siblings=max_siblings)
         results = []
         for idx, e in enumerate(plan.events):
+            log_step(f"Stage-3 event begin: index={idx}, type={e.audio_type}")
             event_dict = e.__dict__ | {"visual_caption": plan.visual_caption}
             workdir = os.path.join(outdir, f"event_{idx:02d}")
             os.makedirs(workdir, exist_ok=True)
@@ -259,6 +268,8 @@ class GenerationTeam:
                 "scores": scores,
                 "nodes": nodes
             })
+            log_step(f"Stage-3 event complete: index={idx}, wav={best_wav}, scores={scores}")
+        log_step("Stage-3 synthesis complete")
         return {"events": results}
 
 
@@ -296,10 +307,12 @@ class AudioGenieSystem:
         self.outdir = outdir
 
     def run(self, multimodal_context: Dict[str, Any], max_depth: int = 3, max_siblings: int = 3) -> Dict[str, Any]:
+        log_step("Pipeline start")
         plan = self.generation.plan(multimodal_context)
         os.makedirs(self.outdir, exist_ok=True)
         with open(os.path.join(self.outdir, "stage1_output.json"), "w", encoding="utf-8") as f:
             f.write(plan.to_json())
+        log_step("Saved stage1_output.json")
 
         plan = self.generation.assign_and_refine(
             plan,
@@ -309,6 +322,7 @@ class AudioGenieSystem:
         )
         with open(os.path.join(self.outdir, "stage2_output.json"), "w", encoding="utf-8") as f:
             f.write(plan.to_json())
+        log_step("Saved stage2_output.json")
 
         results = self.generation.synthesize_with_tot(
             plan, outdir=self.outdir, eval_critic=self.eval_critic,
@@ -352,18 +366,22 @@ class AudioGenieSystem:
             final_wav = os.path.join(self.outdir, "final_mixed_audio.wav")
             final_mp4 = os.path.join(self.outdir, "final_video_with_audio.mp4")
             try: 
+                log_step(f"Mixing {len(audio_segments)} audio segments")
                 mixed = mix_and_maybe_mux(
                     video_path=(multimodal_context or {}).get("video"),
                     audio_segments=audio_segments,
                     output_audio_path=final_wav,
                     output_video_path=final_mp4
                 )
+                log_step("Mixing completed")
             except Exception as _e:
                 mixed = {"error": str(_e)}
+                log_step(f"Mixing failed: {_e}")
 
         with open(os.path.join(self.outdir, "stage3_mix_segments.json"), "w", encoding="utf-8") as f:
             json.dump(audio_segments, f, ensure_ascii=False, indent=2)
         with open(os.path.join(self.outdir, "stage3_output.json"), "w", encoding="utf-8") as f:
             json.dump({"results": results, "mixed": mixed}, f, ensure_ascii=False, indent=2)
 
+        log_step("Pipeline finished")
         return {"plan": json.loads(plan.to_json()), "results": results, "mixed": mixed}

@@ -7,6 +7,7 @@ from tool.base import ToolRunError
 from critiquers import AudioEvalCritic
 from llm import LLM
 from critiquers import AudioEvalCritic
+from utils.runtime_logger import log_step
 
 
 def _safe_float(x, default=0.0) -> float:
@@ -157,6 +158,7 @@ class ToTExecutor:
 
     def run(self, event: Dict[str, Any], workdir: str) -> Tuple[str, Dict[str, Any], Dict[str, dict]]:
         if event.get("keep") and isinstance(event.get("keep_wav"), str) and os.path.exists(event["keep_wav"]):
+            log_step("ToT skip generation: using keep_wav from stage-2")
             nodes_snapshot = {
                 "kept": {
                     "node_id": "kept",
@@ -174,6 +176,7 @@ class ToTExecutor:
         root = self._new_node("initial", meta={"event": event})
         candidates: List[str] = list(event.get("model_candidates") or [])[: self.max_siblings]
         refined_inputs: Dict[str, Dict[str, Any]] = dict(event.get("refined_inputs") or {})
+        log_step(f"ToT start: candidates={candidates}, max_depth={self.max_depth}, max_siblings={self.max_siblings}")
         if not candidates:
             self.nodes[root.node_id].meta["note"] = "no candidates in event; skipped"
             nodes_snapshot = {nid: self.nodes[nid].__dict__ for nid in self.nodes}
@@ -183,12 +186,14 @@ class ToTExecutor:
         best_scores: Dict[str, float] = {"quality": 0.0, "alignment": 0.0, "aesthetics": 0.0}
 
         for model_name in candidates:
+            log_step(f"ToT candidate start: model={model_name}")
             base_args = copy.deepcopy(refined_inputs)
             tries = 1 + self.prompt_max_retries
             prev_scores: Dict[str, float] = {}
             prev_suggestions: List[str] = []
 
             for attempt in range(tries):
+                log_step(f"ToT generation attempt: model={model_name}, attempt={attempt + 1}/{tries}")
                 node = self._new_node(
                     "generation" if attempt == 0 else "refinement",
                     parent=root.node_id,
@@ -214,12 +219,15 @@ class ToTExecutor:
                 scores, suggestions = self.critic.evaluate(event, wav_path, self.llm)
                 node.meta["scores"] = scores
                 node.meta["suggestions"] = suggestions
+                log_step(f"ToT evaluation: model={model_name}, scores={scores}")
 
                 if sum(scores.values()) > sum(best_scores.values()):
                     best_scores = scores
                     best_wav = wav_path
+                    log_step(f"ToT best update: model={model_name}, wav={best_wav}")
 
                 if _best_threshold_met(scores):
+                    log_step(f"ToT early stop: model={model_name} reached threshold")
                     nodes_snapshot = {nid: self.nodes[nid].__dict__ for nid in self.nodes}
                     return wav_path or "", scores, nodes_snapshot
 
@@ -228,4 +236,5 @@ class ToTExecutor:
                 prev_suggestions = suggestions
 
         nodes_snapshot = {nid: self.nodes[nid].__dict__ for nid in self.nodes}
+        log_step("ToT finished: returning best candidate")
         return best_wav or "", best_scores, nodes_snapshot

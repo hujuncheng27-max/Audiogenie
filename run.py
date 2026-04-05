@@ -6,12 +6,14 @@ import json
 import pathlib
 from router import load_llm
 from agents import AudioGenieSystem
+from utils.runtime_logger import log_step
 
 
 os.environ['GEMINI_API_KEY'] = 'Your_Gemini_Api_Key'
 
 
 def main():
+    log_step("Entrypoint started: parsing CLI arguments")
     parser = argparse.ArgumentParser(description="AudioGenie (training-free multi-agent)")
     parser.add_argument("--text", default=None)
     parser.add_argument("--image", default=None)
@@ -24,8 +26,10 @@ def main():
 
     outdir = os.path.abspath(args.outdir or "outputs")
     pathlib.Path(outdir).mkdir(parents=True, exist_ok=True)
+    log_step(f"Output directory ready: {outdir}")
 
     llm = load_llm(args.llm)
+    log_step(f"LLM loaded from router: {args.llm}")
 
     ctx = {
         "text": args.text,
@@ -34,8 +38,10 @@ def main():
     }
 
     system = AudioGenieSystem(llm, outdir=outdir)
+    log_step("System initialized; starting run pipeline")
     out = system.run(ctx, max_depth=args.max_depth, max_siblings=args.max_siblings)
 
+    log_step("Pipeline completed; printing final JSON output")
     print(json.dumps(out, ensure_ascii=False, indent=2))
 
 
