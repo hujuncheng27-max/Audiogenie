@@ -29,10 +29,6 @@ class AudioEvalCritic:
     def __init__(self):
         pass
 
-    def _read_bytes(self, path: str) -> bytes:
-        with open(path, "rb") as f:
-            return f.read()
-
     def _parse_response(self, text: str) -> Tuple[Dict[str, float], List[str]]:
         """
         Return: (scores, suggestions)
@@ -106,13 +102,11 @@ class AudioEvalCritic:
         """
         Return (scores, suggestions)
         """
-        audio_bytes = self._read_bytes(wav_path)
-
         system = "You are an audio critic. Evaluate the following audio on quality, alignment to the described event, and overall aesthetics. Return JSON like: {\"quality\":0.7, \"alignment\":0.6, \"aesthetics\":0.5, \"suggestions\": [\"...\"]}."
         user = json.dumps({"event": event}, ensure_ascii=False)
 
         try:
-            raw = llm.chat(system=system, user=user, media={"audio": audio_bytes})
+            raw = llm.chat(system=system, user=user, media={"audio": wav_path})
             scores, suggestions = self._parse_response(raw)
             return scores, suggestions
         except Exception as e:
