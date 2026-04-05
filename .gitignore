@@ -13,6 +13,6 @@ __pycache__/
 
 # models
 *.yaml
-
+!template/config_template.yaml
 *.pyc
 *.json

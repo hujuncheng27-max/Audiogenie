@@ -1,128 +1,124 @@
-# 🎶 AudioGenie: A Training-Free Multi-Agent Framework for Diverse Multimodality-to-Multiaudio Generation
+# AudioGenie
 
-[![arXiv](https://img.shields.io/badge/arXiv-2505.22053-brightgreen.svg?style=flat-square)](https://arxiv.org/pdf/2505.22053) 
-[![githubio](https://img.shields.io/badge/GitHub.io-Project-blue?logo=Github&style=flat-square)](https://audiogenie.github.io/)
-[![Hugging Face Dataset](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Dataset-blue)](https://huggingface.co/datasets/ryysayhi/MA-Bench)
-[![github](https://img.shields.io/badge/GitHub-Code-blue?logo=Github&style=flat-square)](https://github.com/ryysayhi/AudioGenie)
+## 快速开始
+
+### 1. 配置 LLM
+
+将模板复制到项目根目录并编辑：
+
+```bash
+cp template/config_template.yaml ./config.yaml
+```
+
+`config.yaml` 的 `llms:` 字段下存放所有命名的 LLM 配置项，格式如下：
+
+```yaml
+llms:
+  <名称>:              # 自定义键名——即 --llm 参数传入的值
+    provider: "..."    # 见下方支持的 provider 列表
+    api_key: "..."     # API 密钥（本地模型可留空）
+    api_url: "..."     # 接口地址（可选，按 provider 而定）
+    default_model: "..." # 模型标识符
+    parameters:        # 可选的生成参数
+      temperature: 0.7
+      max_tokens: 2048
+```
+
+**支持的 provider：**
+
+| `provider` 值 | 对应类 | 说明 |
+|---|---|---|
+| `google` | `GeminiLLM` | 需要 `GEMINI_API_KEY` 环境变量或配置中的 `api_key` |
+| `openai` | `OpenaiLLM` | 需要 `OPENAI_API_KEY` 或 `api_key`；设置 `api_url` 可对接兼容接口 |
+| `nvidia` | `NvidiaLLM` | 需要 `NVIDIA_API_KEY` 或 `api_key` |
+| `huggingface` | `HuggingfaceLLM` | 本地运行，`default_model` 为 HuggingFace 模型 ID |
+| `gradio` | `GradioLLM` | 连接 Gradio Space，`default_model` 为 Space ID（如 `Qwen/Qwen3.5-Omni-Offline-Demo`） |
+
+**配置示例：**
+
+```yaml
+llms:
+  google_gemini:
+    provider: "google"
+    api_key: "AIzaSy..."
+    default_model: "gemini-2.5-flash"
+
+  hf-qwen3-vl-8b:
+    provider: "huggingface"
+    default_model: "Qwen/Qwen3-VL-8B-Instruct"
+    parameters:
+      device_map: "auto"
+
+  qwen_omni_gradio:
+    provider: "gradio"
+    default_model: "Qwen/Qwen3.5-Omni-Offline-Demo"
+    api_key: ""          # HuggingFace Token，私有 Space 时必填
+    parameters:
+      temperature: 0.7
+      top_p: 0.8
+      top_k: 20
+```
 
 ---
 
-**This is the official repository for "[AudioGenie: A Training-Free Multi-Agent Framework for Diverse Multimodality-to-Multiaudio Generation](https://arxiv.org/pdf/2505.22053)".**
+### 2. 运行
 
-## 🚀 News
-- **2025-10**: MA-Bench has been released!
-- **2025-07**: AudioGenie has been accepted by ACM MM 2025! We look forward to seeing you in Dublin, Ireland!
-
-
-## ✨ Abstract
-
-Multimodality-to-Multiaudio (MM2MA) generation faces significant challenges in synthesizing diverse and contextually aligned audio types (e.g., sound effects, speech, music, and songs) from multimodal inputs (e.g., video, text, images), owing to the scarcity of high-quality paired datasets and the lack of robust multi-task learning frameworks. Recently, multi-agent system shows great potential in tackling the above issues. However, directly applying it to MM2MA task presents three critical challenges: (1) inadequate fine-grained understanding of multimodal inputs (especially for video), (2) the inability of single models to handle diverse audio events, and (3) the absence of self-correction mechanisms for reliable outputs. 
-To this end, we propose AudioGenie, a novel training-free multi-agent system featuring a dual-layer architecture with a generation team and a supervisor team. For the generation team, a fine-grained task decomposition and an adaptive Mixture-of-Experts (MoE) collaborative entity are designed for detailed comprehensive multimodal understanding and dynamic model selection, and a trial-and-error iterative refinement module is designed for self-correction. The supervisor team ensures temporal-spatial consistency and verifies outputs through feedback loops. Moreover, we build MA-Bench, the first benchmark for MM2MA tasks, comprising 198 annotated videos with multi-type audios. 
-Experiments demonstrate that our AudioGenie achieves state-of-the-art (SOTA) or comparable performance across 9 metrics in 8 tasks. User study further validates the effectiveness of our method in terms of quality, accuracy, alignment, and aesthetic.
-
-
-## ✨ Method
-
-<p align="center">
-  <img src="pic/generation.png" width="98%"/>
-</p>
-
-<p align="center"><strong>Overview of the AudioGenie Framework.</strong></p>
-
-
-## 🔮 MA-Bench
-
-The dataset has been released on [Hugging Face](https://huggingface.co/datasets/ryysayhi/MA-Bench).
-
-<p align="center">
-  <img src="pic/dataset.png" width="98%"/>
-</p>
-
-<p align="center"><strong>Statistics of video categories within our MA-Bench.</strong></p>
-
-## 🛠️ Environment Setup
-
-- Create Anaconda Environment:
-  
-  ```bash
-  git clone https://github.com/ryysayhi/AudioGenie.git
-  cd AudioGenie
-  conda create -n AudioGenie python=3.10
-  conda activate AudioGenie
-  pip install -r requirements.txt
-  ```
-- Install ffmpeg:
-  
-  ```bash
-  sudo apt-get install ffmpeg
-  ```
-
-## 📀 Establish Tool Library
-
-- In the `/bin` folder, we provide four examples: [MMAudio](https://github.com/hkchengrex/MMAudio), [CosyVoice](https://github.com/FunAudioLLM/CosyVoice), [InspireMusic](https://github.com/FunAudioLLM/FunMusic), [DiffRhythm](https://github.com/ASLP-lab/DiffRhythm).
-You can clone each project and install it following its own guide. Then set:
-  
-  ```bash
-  export MMAUDIO_HOME=<PATH_TO_MMAUDIO>
-  export COSYVOICE_HOME=<PATH_TO_COSYVOICE>
-  export INSPIREMUSIC_HOME=<PATH_TO_INSPIREMUSIC>
-  export DIFFRHYTHM_HOME=<PATH_TO_DIFFRHYTHM>
-  
-  export MMAUDIO_CONDA=mmaudio
-  export COSYVOICE_CONDA=cosyvoice
-  export INSPIREMUSIC_CONDA=inspiremusic
-  export DIFFRHYTHM_CONDA=diffrhythm
-  ```
-- To extend the library, add your preferred speech / song / music / sound-effect models by defining a `ToolSpec` in `tools.py`, and add a matching `run_model.py` in `/bin`.
-
-## 🎯 Infer
-We use Gemini as the MLLM in this repo. You can swap it for another MLLM (e.g., Qwen2.5-VL, which we used in the paper). 
-- Set your API key for Gemini in `run.py` (or export it as an env var):
-  ```bash
-  os.environ['GEMINI_API_KEY'] = 'Your_Gemini_Api_Key'
-  # or in shell:
-  # export GEMINI_API_KEY=Your_Gemini_Api_Key
-  ```
-
-
-- Run the inference script:
-  ```bash
-  python AudioGenie/run.py \
-    --video <PATH_TO_VIDEO or omit> \
-    --image <PATH_TO_IMAGE or omit> \
-    --text  "<YOUR_TEXT or omit>" \
-    --outdir <OUTPUT_DIR>
-  ```
-
-## 📭 Contact
-
-If you have any comments or questions, feel free to contact me (yrong854@connect.hkust-gz.edu.cn).
-
-## 📚 Citation
-
-If you find our work useful, please consider citing:
-
-```
-@article{rong2025audiogenie,
-  title={AudioGenie: A Training-Free Multi-Agent Framework for Diverse Multimodality-to-Multiaudio Generation},
-  author={Rong, Yan and Wang, Jinting and Lei, Guangzhi and Yang, Shan and Liu, Li},
-  journal={arXiv preprint arXiv:2505.22053},
-  year={2025}
-}
+```bash
+python run.py \
+    --text   "输入提示词" \
+    --llm    "<config.yaml 中的名称>" \
+    --outdir "输出目录"
 ```
 
-# Additional Information
+可参考 `tests/api_tests.sh` 中的示例：
+
+```bash
+export CUDA_VISIBLE_DEVICES=0,1
+
+python run.py \
+    --text   "诗人带着不甘回忆道：你我年少相逢，都有凌云之志" \
+    --llm    "hf-qwen3-vl-8b" \
+    --outdir "test_outputs"
+```
+
+**`run.py` 全部参数说明：**
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `--text` | `None` | 文本提示 / 输入语句 |
+| `--image` | `None` | 图片文件路径 |
+| `--video` | `None` | 视频文件路径（`.mp4`） |
+| `--llm` | `google_gemini` | `config.yaml` 中的 LLM 名称 |
+| `--outdir` | `outputs/` | 生成文件的保存目录 |
+| `--max_depth` | `3` | 多智能体树的最大递归深度 |
+| `--max_siblings` | `1` | 每个节点的最大并行分支数 |
+
+---
+
+## TODO
+
+- [ ] 安装说明（依赖、CUDA 版本、CosyVoice 配置）
+- [ ] 系统架构介绍（agents、router、多智能体树）
+- [ ] 输出格式说明
+- [ ] 新增 Agent 类型的方法
+- [ ] 评测 / 基准测试说明
+
+---
+
+## 附加说明
+
 安装cosyvoice时出现setuptool问题 [here](https://github.com/FunAudioLLM/CosyVoice/issues/1844)
 
 修改cuda版本：
+
 CUDA 11.8
-```cuda 118
+```
 --extra-index-url https://download.pytorch.org/whl/cu118
 --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-11/pypi/simple
 ```
 
 CUDA 12.1
-```cuda 121
+```
 --extra-index-url https://download.pytorch.org/whl/cu121
 --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple
 ```
