@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, CalendarClock, Download, HardDrive, Layers, Trash2, Waves } from 'lucide-react';
 import { AppNotice, Artifact } from '../types';
 
@@ -29,12 +29,25 @@ interface HistoryViewProps {
   onClearAll: () => void;
   onExport: (id: string) => Promise<{ url: string }>;
   onNotify: (tone: AppNotice['tone'], title: string, message: string) => void;
+  focusedArtifactId?: string | null;
+  onFocusHandled?: () => void;
 }
 
-export function HistoryView({ artifacts, onOpenWorkspace, onDeleteItem, onClearAll, onExport, onNotify }: HistoryViewProps) {
+export function HistoryView({
+  artifacts,
+  onOpenWorkspace,
+  onDeleteItem,
+  onClearAll,
+  onExport,
+  onNotify,
+  focusedArtifactId,
+  onFocusHandled,
+}: HistoryViewProps) {
   const [selectedTrack, setSelectedTrack] = useState(artifacts[0]?.id || '');
   const [isExporting, setIsExporting] = useState(false);
   const [isConfirmingClearAll, setIsConfirmingClearAll] = useState(false);
+  const [highlightedTrack, setHighlightedTrack] = useState('');
+  const itemRefs = useRef<Record<string, HTMLElement | null>>({});
 
   useEffect(() => {
     if (artifacts.length === 0) {
@@ -47,6 +60,33 @@ export function HistoryView({ artifacts, onOpenWorkspace, onDeleteItem, onClearA
       setSelectedTrack(artifacts[0].id);
     }
   }, [artifacts, selectedTrack]);
+
+  useEffect(() => {
+    if (!focusedArtifactId || !artifacts.some((artifact) => artifact.id === focusedArtifactId)) {
+      return;
+    }
+
+    setSelectedTrack(focusedArtifactId);
+    setHighlightedTrack(focusedArtifactId);
+
+    const frameId = window.requestAnimationFrame(() => {
+      itemRefs.current[focusedArtifactId]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    });
+
+    const timeoutId = window.setTimeout(() => {
+      setHighlightedTrack((current) => (current === focusedArtifactId ? '' : current));
+    }, 2600);
+
+    onFocusHandled?.();
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [artifacts, focusedArtifactId, onFocusHandled]);
 
   const selectedArtifact = useMemo(() => {
     return artifacts.find((artifact) => artifact.id === selectedTrack) || null;
@@ -186,8 +226,11 @@ export function HistoryView({ artifacts, onOpenWorkspace, onDeleteItem, onClearA
               {artifacts.map((artifact) => (
                 <article
                   key={artifact.id}
+                  ref={(element) => {
+                    itemRefs.current[artifact.id] = element;
+                  }}
                   onClick={() => setSelectedTrack(artifact.id)}
-                  className={`w-full text-left p-4 rounded-xl border transition-all cursor-pointer ${selectedTrack === artifact.id ? 'bg-surface-container-high border-primary shadow-lg shadow-primary/5' : 'bg-surface-container-low border-outline-variant/10 hover:bg-surface-container hover:border-outline-variant/30'}`}
+                  className={`w-full text-left p-4 rounded-xl border transition-all cursor-pointer ${selectedTrack === artifact.id ? 'bg-surface-container-high border-primary shadow-lg shadow-primary/5' : 'bg-surface-container-low border-outline-variant/10 hover:bg-surface-container hover:border-outline-variant/30'} ${highlightedTrack === artifact.id ? 'ring-2 ring-primary/50 shadow-[0_0_40px_rgba(185,156,255,0.22)]' : ''}`}
                 >
                   <div className="flex justify-between gap-4">
                     <div className="flex gap-3">
@@ -198,6 +241,9 @@ export function HistoryView({ artifacts, onOpenWorkspace, onDeleteItem, onClearA
                         <h3 className="text-sm font-bold text-on-surface uppercase tracking-tight">{artifact.title}</h3>
                         <p className="text-[10px] text-outline uppercase tracking-widest">{artifact.type} // {artifact.duration}</p>
                         <p className="text-[10px] text-outline">{formatTimestamp(artifact.createdAt)}</p>
+                        {highlightedTrack === artifact.id && (
+                          <p className="text-[10px] uppercase tracking-widest text-primary font-bold">Newly Generated</p>
+                        )}
                       </div>
                     </div>
                     <button

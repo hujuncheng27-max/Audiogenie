@@ -18,7 +18,6 @@ import { TopNavBar } from './components/TopNavBar';
 import { Footer } from './components/Footer';
 import { Workspace } from './components/Workspace';
 import { ProcessingView } from './components/ProcessingView';
-import { ResultsView } from './components/ResultsView';
 import { HistoryView } from './components/HistoryView';
 import { DocsView } from './components/DocsView';
 import { HomeView } from './components/HomeView';
@@ -54,6 +53,7 @@ export default function App() {
   const [generationConfig, setGenerationConfig] = useState<GenerationConfig>(() => loadGenerationSettings());
   const [notice, setNotice] = useState<AppNotice | null>(null);
   const [demoModeEnabled, setDemoModeEnabled] = useState(false);
+  const [historyFocusId, setHistoryFocusId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -124,7 +124,8 @@ export default function App() {
       runtimeMode,
       statusMessage: runtimeMode === 'demo' ? 'Demo result created locally.' : 'Generation complete.',
     });
-    setView('results');
+    setHistoryFocusId(resultId);
+    setView('history');
 
     if (payload.config.autoExportOnComplete) {
       try {
@@ -227,7 +228,7 @@ export default function App() {
 
       if (result.status === 'completed' && result.artifact) {
         await persistCompletedArtifact(result.id, result.artifact, payload, 'live');
-        pushNotice('success', 'Generation complete', 'Your latest result was added to local history.');
+        pushNotice('success', 'Audio generated and saved to History', 'Your latest artifact is now selected in History and ready to inspect.');
         return;
       }
 
@@ -250,6 +251,7 @@ export default function App() {
   const handleNewGeneration = () => {
     setWorkspaceVersion((current) => current + 1);
     setActiveGeneration(null);
+    setHistoryFocusId(null);
     setView('workspace');
   };
 
@@ -332,7 +334,10 @@ export default function App() {
               >
                 <HomeView
                   onStartCreating={() => setView('workspace')}
-                  onOpenHistory={() => setView('history')}
+                  onOpenHistory={() => {
+                    setHistoryFocusId(null);
+                    setView('history');
+                  }}
                 />
               </motion.div>
             )}
@@ -349,7 +354,10 @@ export default function App() {
                   onGenerate={handleGenerate}
                   artifacts={artifacts}
                   onNewGeneration={handleNewGeneration}
-                  onViewHistory={() => setView('history')}
+                  onViewHistory={() => {
+                    setHistoryFocusId(null);
+                    setView('history');
+                  }}
                   generationConfig={generationConfig}
                   onGenerationConfigChange={handleGenerationConfigChange}
                 />
@@ -365,22 +373,6 @@ export default function App() {
                 className="flex-grow flex flex-col"
               >
                 <ProcessingView activeGeneration={activeGeneration} />
-              </motion.div>
-            )}
-            {view === 'results' && (
-              <motion.div
-                key="results"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-                className="flex-grow flex flex-col"
-              >
-                <ResultsView
-                  artifacts={artifacts}
-                  onExport={handleExport}
-                  onNotify={pushNotice}
-                />
               </motion.div>
             )}
             {view === 'history' && (
@@ -399,6 +391,8 @@ export default function App() {
                   onClearAll={handleClearHistory}
                   onExport={handleExport}
                   onNotify={pushNotice}
+                  focusedArtifactId={historyFocusId}
+                  onFocusHandled={() => setHistoryFocusId(null)}
                 />
               </motion.div>
             )}

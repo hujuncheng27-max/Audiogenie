@@ -210,7 +210,7 @@ export function ProcessingView({ activeGeneration }: ProcessingViewProps) {
               <div className="pt-2 border-t border-outline-variant/10 mt-2">
                 <div className="flex items-center gap-2">
                   <span className="w-1 h-3 bg-primary animate-bounce"></span>
-                  <span className="text-primary italic">{isCompleted ? 'Artifact ready for results view.' : statusMessage}</span>
+                  <span className="text-primary italic">{isCompleted ? 'Artifact ready in History.' : statusMessage}</span>
                 </div>
               </div>
             </div>

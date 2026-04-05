@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type View = 'home' | 'workspace' | 'processing' | 'results' | 'history' | 'docs';
+export type View = 'home' | 'workspace' | 'processing' | 'history' | 'docs';
 
 export type SourceType = 'video' | 'image' | 'video+image' | 'text';
 export type QualityMode = 'fast' | 'balanced' | 'high-quality';
