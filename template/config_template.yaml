@@ -8,7 +8,7 @@ llms:
   primary_openai:
     provider: "openai"
     api_url: "https://api.openai.com/v1"
-    api_key: "sk-xxxxxxxxxxxxxxxxxxxxxxxx" 
+    api_key: "sk-xxxxxxxxxxxxxxxxxxxxxxxx"
     default_model: "gpt-4-turbo"
     parameters:
       temperature: 0.7
@@ -28,7 +28,28 @@ llms:
   local_ollama:
     provider: "ollama"
     api_url: "http://localhost:11434/api"
-    api_key: ""  # 本地部署通常不需要 key
+    api_key: ""
     default_model: "llama3"
     parameters:
       temperature: 0.5
+
+# 工具配置区域
+tools:
+  cosyvoice3_online:
+    provider: "gradio"
+    task: "tts"
+    default_model: "FunAudioLLM/Fun-CosyVoice3-0.5B"
+    space: "FunAudioLLM/Fun-CosyVoice3-0.5B"
+    api_name: "/generate_audio"
+    hf_token: ""
+    inputs:
+      - target_text
+      - prompt_transcript
+      - prompt_wav
+    notes: "CosyVoice3 online zero-shot via Gradio API."
+    parameters:
+      mode_value: "zero_shot"
+      instruct_text: "You are a helpful assistant. <|endofprompt|>"
+      seed: 0
+      stream: "false"
+      ui_lang: "Zh"
