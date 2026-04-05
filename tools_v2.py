@@ -6,7 +6,9 @@ from typing import Any, Dict, Optional
 import yaml
 
 from tool.base import BaseTool, ToolSpec
+from tool.cosyvoice2 import CosyVoice2Tool
 from tool.cosyvoice3 import CosyVoice3Tool
+from utils.runtime_logger import instrument_tool_run
 
 
 class ToolLibrary:
@@ -43,7 +45,11 @@ class ToolLibrary:
         """Select the concrete tool implementation from the provider field."""
         provider = tool_config.get("provider")
         if provider == "gradio":
-            return CosyVoice3Tool(spec, **tool_config)
+            name = (spec.name or "").lower()
+            model = (spec.default_model or "").lower()
+            if "cosyvoice2" in name or "cosyvoice2" in model:
+                return instrument_tool_run(CosyVoice2Tool(spec, **tool_config))
+            return instrument_tool_run(CosyVoice3Tool(spec, **tool_config))
         raise ValueError(f"Unsupported tool provider: {provider}")
 
     def has(self, name: str) -> bool:
@@ -60,6 +66,8 @@ def run_tool(tool: ToolSpec, args: Dict[str, Any], output_wav: Optional[str] = N
     runtime = getattr(tool, "runtime", None)
     if runtime is None:
         raise RuntimeError(f"Tool '{tool.name}' has no runtime bound in tools_v2")
+    runtime = instrument_tool_run(runtime)
+    tool.runtime = runtime
 
     normalized_args = dict(args or {})
 

@@ -377,7 +377,8 @@ class SpeechExpert(BaseExpert):
                     e.refined_inputs[model_name] = {
                         "text": utter,
                         "prompt_transcript": plan_ctx.get("prompt_transcript", "希望你以后能够做的比我还好呦。"),
-                        "prompt_wav": plan_ctx.get("prompt_wav_path", "bin/zero_shot_prompt.wav")
+                        "prompt_wav": plan_ctx.get("prompt_wav_path", "bin/zero_shot_prompt.wav"),
+                        "instruct_text": style,
                     }
                 elif "firered" in lname:
                     e.refined_inputs[model_name] = {

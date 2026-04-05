@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, Optional
 _RESET = "\033[0m"
 _STEP_COLOR = "\033[36m"
 _LLM_COLOR = "\033[33m"
+_TOOL_COLOR = "\033[32m"
 
 
 def _supports_color() -> bool:
@@ -52,6 +53,22 @@ def _shorten(text: Any, max_len: int = 220) -> str:
     if len(s) <= max_len:
         return s
     return s[: max_len - 3] + "..."
+
+
+def _sanitize_mapping(data: Any) -> Any:
+    if not isinstance(data, dict):
+        return data
+    redacted = {}
+    for k, v in data.items():
+        lk = str(k).lower()
+        if any(token in lk for token in ("key", "token", "secret", "password")):
+            redacted[k] = "***"
+            continue
+        if isinstance(v, bytes):
+            redacted[k] = f"<bytes:{len(v)}>"
+            continue
+        redacted[k] = v
+    return redacted
 
 
 def _media_summary(media: Optional[Dict[str, Any]]) -> str:
@@ -120,7 +137,7 @@ def decorate_chat(chat_fn: Callable[..., str], model_label: str) -> Callable[...
             )
             raise
 
-    setattr(wrapper, "_audiogenie_logged", True)
+    setattr(wrapper, "_logged", True)
     return wrapper
 
 
@@ -129,10 +146,73 @@ def instrument_llm_chat(llm_obj: Any) -> Any:
     if chat_fn is None:
         return llm_obj
 
-    if getattr(chat_fn, "_audiogenie_logged", False):
+    if getattr(chat_fn, "_logged", False):
         return llm_obj
 
     model_name = getattr(llm_obj, "model", llm_obj.__class__.__name__)
     label = f"{llm_obj.__class__.__name__}({model_name})"
     llm_obj.chat = decorate_chat(chat_fn, label)
     return llm_obj
+
+
+def decorate_tool_run(run_fn: Callable[..., str], tool_label: str) -> Callable[..., str]:
+    @wraps(run_fn)
+    def wrapper(*args, **kwargs):
+        run_args = kwargs.get("args")
+        output_wav = kwargs.get("output_wav")
+
+        if run_args is None and len(args) >= 1:
+            run_args = args[0]
+        if output_wav is None and len(args) >= 2:
+            output_wav = args[1]
+
+        safe_args = _sanitize_mapping(run_args)
+
+        _logger().info(
+            "%s request tool=%s args=%s output=%s",
+            _colored_prefix("TOOL", _TOOL_COLOR),
+            tool_label,
+            _shorten(safe_args, 260),
+            _shorten(output_wav, 120),
+        )
+
+        start = time.perf_counter()
+        try:
+            result = run_fn(*args, **kwargs)
+            elapsed = time.perf_counter() - start
+            _logger().info(
+                "%s response tool=%s elapsed=%.2fs result=%s",
+                _colored_prefix("TOOL", _TOOL_COLOR),
+                tool_label,
+                elapsed,
+                _shorten(result, 200),
+            )
+            return result
+        except Exception as exc:
+            elapsed = time.perf_counter() - start
+            _logger().exception(
+                "%s error tool=%s elapsed=%.2fs error=%s",
+                _colored_prefix("TOOL", _TOOL_COLOR),
+                tool_label,
+                elapsed,
+                exc,
+            )
+            raise
+
+    setattr(wrapper, "_logged", True)
+    return wrapper
+
+
+def instrument_tool_run(tool_runtime: Any) -> Any:
+    run_fn = getattr(tool_runtime, "run", None)
+    if run_fn is None:
+        return tool_runtime
+
+    if getattr(run_fn, "_logged", False):
+        return tool_runtime
+
+    spec = getattr(tool_runtime, "spec", None)
+    tool_name = getattr(spec, "name", None) or tool_runtime.__class__.__name__
+    label = f"{tool_runtime.__class__.__name__}({tool_name})"
+    tool_runtime.run = decorate_tool_run(run_fn, label)
+    return tool_runtime

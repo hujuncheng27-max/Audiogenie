@@ -1,4 +1,5 @@
 from .base import BaseTool, GradioTool, ToolRunError, ToolSpec
+from .cosyvoice2 import CosyVoice2Tool
 from .cosyvoice3 import CosyVoice3Tool
 
 __all__ = [
@@ -7,4 +8,5 @@ __all__ = [
 	"BaseTool",
 	"GradioTool",
 	"CosyVoice3Tool",
+	"CosyVoice2Tool",
 ]
