@@ -299,13 +299,13 @@ class HuggingfaceLLM(LLM):
         return output_text[0] if output_text else ""
     
 class GradioLLM(LLM):
-    def __init__(self, space: str = "Qwen/Qwen3.5-Omni-Offline-Demo", hf_token: Optional[str] = None,
-                 temperature: float = 0.7, top_p: float = 0.8, top_k: int = 20):
-        self.space = space
+    def __init__(self, model: str = "Qwen/Qwen3.5-Omni-Offline-Demo", hf_token: Optional[str] = None,
+                 **gradio_kwargs):
+        self.space = model
         self.hf_token = hf_token or os.environ.get("HF_TOKEN")
-        self.temperature = temperature
-        self.top_p = top_p
-        self.top_k = top_k
+        self.temperature = gradio_kwargs.get("temperature", 0.7)
+        self.top_p = gradio_kwargs.get("top_p", 0.8)
+        self.top_k = gradio_kwargs.get("top_k", 20)
         self._client = None
         self._init_client()
 
