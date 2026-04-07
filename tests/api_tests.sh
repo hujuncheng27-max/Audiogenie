@@ -1,6 +1,7 @@
 export CUDA_VISIBLE_DEVICES=0,1
 
 python -m pdb run.py \
-    --text "诗人带着不甘回忆道："你我年少相逢，都有凌云之志"。" \
-    --llm "qwen3.5-demo" \
+    --text "The background sound features sea waves sound effects." \
+    --llm "qwen3-omni-alibaba" \
+    --video bin/searainbow.mp4 \
     --outdir "test_outputs"

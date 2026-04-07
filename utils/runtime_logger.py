@@ -12,6 +12,12 @@ _LLM_COLOR = "\033[33m"
 _TOOL_COLOR = "\033[32m"
 
 
+def _use_log_truncation() -> bool:
+    """Default to full logs; enable truncation only when explicitly requested."""
+    val = str(os.environ.get("LOG_TRUNCATE", "")).strip().lower()
+    return val in {"1", "true", "yes", "on"}
+
+
 def _supports_color() -> bool:
     if os.environ.get("NO_COLOR"):
         return False
@@ -50,6 +56,8 @@ def log_step(message: str) -> None:
 def _shorten(text: Any, max_len: int = 220) -> str:
     s = "" if text is None else str(text)
     s = s.replace("\n", "\\n")
+    if not _use_log_truncation():
+        return s
     if len(s) <= max_len:
         return s
     return s[: max_len - 3] + "..."

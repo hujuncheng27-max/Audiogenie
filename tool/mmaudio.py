@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import mimetypes
+import os
 import shlex
 import shutil
 import subprocess
@@ -41,7 +43,7 @@ class MMAudioTool(GradioTool):
 			return 8.0
 
 	def _negative_prompt(self, args: Dict[str, Any]) -> str:
-		return str(args.get("negative_prompt") or self.config.get("parameters", {}).get("negative_prompt") or "")
+		return str(args.get("negative_prompt") or self.config.get("parameters", {}).get("negative_prompt") or "music")
 
 	def _video_from_video_arg(self, video_arg: Any) -> str:
 		raw = str(video_arg or "").strip()
@@ -61,6 +63,28 @@ class MMAudioTool(GradioTool):
 		if isinstance(video, str) and video.strip():
 			return video.strip()
 		return self._video_from_video_arg(args.get("video_arg"))
+
+	def _video_filedata_payload(self, video_path: str) -> Dict[str, Any]:
+		"""Build a FileData payload and preserve gradio upload semantics."""
+		from gradio_client import handle_file
+
+		p = Path(video_path).expanduser().resolve()
+		if not p.exists():
+			raise self._tool_error(f"Video path does not exist: {p}")
+		if not p.is_file():
+			raise self._tool_error(f"Video path is not a file: {p}")
+
+		mime, _ = mimetypes.guess_type(str(p))
+		payload_raw = handle_file(str(p))
+		payload = dict(payload_raw) if isinstance(payload_raw, dict) else {"path": str(p)}
+		payload.setdefault("path", str(p))
+		payload.setdefault("url", p.as_uri())
+		payload.setdefault("size", int(os.path.getsize(p)))
+		payload.setdefault("orig_name", p.name)
+		payload.setdefault("mime_type", mime or "video/mp4")
+		payload.setdefault("is_stream", False)
+		payload.setdefault("meta", {"_type": "gradio.FileData"})
+		return payload
 
 	def _prompt(self, args: Dict[str, Any]) -> str:
 		return str(args.get("prompt") or args.get("text") or "").strip()
@@ -140,10 +164,8 @@ class MMAudioTool(GradioTool):
 				raise self._tool_error("Missing required argument: prompt/text")
 
 		if video_path:
-			from gradio_client import handle_file
-
 			result = self._predict(
-				video=handle_file(video_path),
+				video=self._video_filedata_payload(video_path),
 				prompt=prompt,
 				negative_prompt=negative_prompt,
 				seed=seed,

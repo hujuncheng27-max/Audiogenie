@@ -157,17 +157,17 @@ class GradioTool(BaseTool):
 			raise RuntimeError("gradio_client not installed. pip install gradio_client") from e
 		kwargs = {}
 		if self.hf_token:
-			kwargs["hf_token"] = self.hf_token
+			kwargs["token"] = self.hf_token
 		self._client = Client(self.space, **kwargs)
 
 	def _predict(self, **kwargs: Any) -> Any:
 		"""Send one Gradio API request and normalize client exceptions."""
 		if self._client is None:
 			self._init_client()
-		try:
-			return self._client.predict(**kwargs)
-		except Exception as e:
-			raise self._tool_error(f"API request error: {type(e).__name__}: {e}") from e
+		
+		return self._client.predict(**kwargs)
+		# except Exception as e:
+		# 	raise self._tool_error(f"API request error: {type(e).__name__}: {e}") from e
 
 
 __all__ = ["ToolSpec", "ToolRunError", "BaseTool", "GradioTool"]

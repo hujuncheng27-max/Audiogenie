@@ -114,7 +114,7 @@ class SFXExpert(BaseExpert):
             "seconds": dur,
             "cfg_strength": 4.5,
             "num_steps": 25,
-            "seed": 42,
+            "seed": -1,
         }
         if use_video and video_path:
             args["video"] = video_path
@@ -127,6 +127,14 @@ class SFXExpert(BaseExpert):
             return video_first or cands
         return cands
 
+    def _pick_video_sfx_tool(self) -> Optional[str]:
+        """Return a video-capable SFX tool name, preferring MMAudio-like tools."""
+        cands = self._pick_sfx_models(use_video=True)
+        for name in cands:
+            if "mmaudio" in name.lower() and self.has_tool(name):
+                return name
+        return cands[0] if cands else None
+
     def process_batch(self, events: List[AudioEvent], plan_ctx: Dict[str, Any], llm: LLM) -> List[AudioEvent]:
         if not events:
             return []
@@ -134,6 +142,7 @@ class SFXExpert(BaseExpert):
         outdir = plan_ctx.get("__outdir__", os.getcwd())
         video_path = plan_ctx.get("video")
         has_video = bool(video_path)
+        video_tool_name = self._pick_video_sfx_tool() if has_video else None
 
         def _fnum(x, default=0.0):
             try:
@@ -172,10 +181,10 @@ class SFXExpert(BaseExpert):
 
         probe_wav = None
         probe_mp4 = None
-        if has_video and self.has_tool("MMAudio"):
+        if has_video and video_tool_name:
             probe_dir = os.path.join(outdir, "stage2_sfx_probe")
             os.makedirs(probe_dir, exist_ok=True)
-            tool = self.tool_lib.get("MMAudio")
+            tool = self.tool_lib.get(video_tool_name)
             video_arg = f'--video "{video_path}"'
             video_stem = os.path.splitext(os.path.basename(video_path))[0]
             probe_wav_path = os.path.join(probe_dir, f"{video_stem}_probe.wav")
@@ -188,7 +197,7 @@ class SFXExpert(BaseExpert):
                 "cfg_strength": 4.5,
                 "num_steps": 25,
                 "output_dir": probe_dir,
-                "seed": 42,
+                "seed": -1,
                 "output": probe_wav_path,
             }
             try:
@@ -320,8 +329,9 @@ class SFXExpert(BaseExpert):
                 description=e.description or "",
                 volume_db=getattr(e, "volume_db", -6.0),
             )
-            ev.model_candidates = self._pick_sfx_models(use_video=False)
-            ev.refined_inputs = self._sfx_refined_inputs(ev, use_video=False, video_path=None)
+            use_video = bool(has_video and video_tool_name)
+            ev.model_candidates = self._pick_sfx_models(use_video=use_video)
+            ev.refined_inputs = self._sfx_refined_inputs(ev, use_video=use_video, video_path=video_path if use_video else None)
             out_events.append(ev)
 
         return out_events

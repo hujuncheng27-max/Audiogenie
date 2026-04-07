@@ -41,8 +41,8 @@ def main():
     log_step("System initialized; starting run pipeline")
     out = system.run(ctx, max_depth=args.max_depth, max_siblings=args.max_siblings)
 
-    log_step("Pipeline completed; printing final JSON output")
-    print(json.dumps(out, ensure_ascii=False, indent=2))
+    log_step("Pipeline completed; printing final JSON output (deprecated: check output directory for generated media files)")
+    # print(json.dumps(out, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
