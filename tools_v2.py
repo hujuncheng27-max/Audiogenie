@@ -8,6 +8,7 @@ import yaml
 from tool.base import BaseTool, ToolSpec
 from tool.cosyvoice2 import CosyVoice2Tool
 from tool.cosyvoice3 import CosyVoice3Tool
+from tool.mmaudio import MMAudioTool
 from utils.runtime_logger import instrument_tool_run
 
 
@@ -42,15 +43,22 @@ class ToolLibrary:
             self.tools[name] = spec
 
     def _build_runtime(self, spec: ToolSpec, tool_config: Dict[str, Any]) -> BaseTool:
-        """Select the concrete tool implementation from the provider field."""
-        provider = tool_config.get("provider")
-        if provider == "gradio":
-            name = (spec.name or "").lower()
-            model = (spec.default_model or "").lower()
-            if "cosyvoice2" in name or "cosyvoice2" in model:
-                return instrument_tool_run(CosyVoice2Tool(spec, **tool_config))
+        """Select the concrete tool implementation from tool name/model identity."""
+        name = (spec.name or "").lower()
+        model = (spec.default_model or "").lower()
+        identity = f"{name} {model}"
+
+        if "mmaudio" in identity:
+            return instrument_tool_run(MMAudioTool(spec, **tool_config))
+        if "cosyvoice2" in identity:
+            return instrument_tool_run(CosyVoice2Tool(spec, **tool_config))
+        if "cosyvoice3" in identity or "cosyvoice" in identity:
             return instrument_tool_run(CosyVoice3Tool(spec, **tool_config))
-        raise ValueError(f"Unsupported tool provider: {provider}")
+
+        raise ValueError(
+            "Unsupported tool name/model for runtime binding: "
+            f"name={spec.name!r}, default_model={spec.default_model!r}"
+        )
 
     def has(self, name: str) -> bool:
         return name in self.tools

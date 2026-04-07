@@ -51,5 +51,27 @@ tools:
       mode_value: "zero_shot"
       instruct_text: "You are a helpful assistant. <|endofprompt|>"
       seed: 0
-      stream: "false"
       ui_lang: "Zh"
+
+  mmaudio_online:
+    provider: "gradio"
+    task: "sfx"
+    default_model: "hkchengrex/MMAudio"
+    space: "hkchengrex/MMAudio"
+    hf_token: ""
+    inputs:
+      - prompt
+      - negative_prompt
+      - seed
+      - num_steps
+      - cfg_strength
+      - duration
+      - video
+    notes: "MMAudio online video-to-audio/text-to-audio via Gradio API."
+    parameters:
+      negative_prompt: "music"
+      seed: -1
+      num_steps: 25
+      cfg_strength: 4.5
+      duration: 8
+      default_video_prompt: "Generate natural, synchronized sound effects that match the visual actions in the video."

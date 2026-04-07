@@ -147,7 +147,7 @@ class SFXExpert(BaseExpert):
         if has_video:
             if not video_seconds:
                 try:
-                    from AudioGenie.utils.media import probe_video_seconds
+                    from utils.media import probe_video_seconds
                     video_seconds = probe_video_seconds(video_path)
                     plan_ctx["video_seconds"] = video_seconds
                 except Exception:
