@@ -164,19 +164,58 @@ class OpenaiLLM(LLM):
 
         media = media or {}
         content = []
-
-        for img in media.get("images", []) if isinstance(media.get("images"), list) else ([media.get("images")] if media.get("images") else []):
-            content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{self._encode_image(img)}"}})
-
+        
         content.append({"type": "text", "text": user})
+
+        for text in self._to_list(media.get("texts")):
+            content.append({"type": "text", "text": str(text)})
+
+        for img in self._to_list(media.get("images")):
+            content.append({"type": "image_url", "image_url": {"url": self._to_data_url(img, fallback_mime="image/jpeg")}})
+
+        for vid in self._to_list(media.get("videos")):
+            content.append({"type": "video_url", "video_url": {"url": self._to_data_url(vid, fallback_mime="video/mp4")}})
+
+        for aud in self._to_list(media.get("audio")):
+            content.append({"type": "audio_url", "audio_url": {"url": self._to_data_url(aud, fallback_mime="audio/mpeg")}})
 
         messages = [{"role": "system", "content": system}, {"role": "user", "content": content}]
 
         resp = self._client.chat.completions.create(model=self.model, messages=messages, stop=stop)
         return resp.choices[0].message.content or ""
 
+    def _to_list(self, x):
+        if not x:
+            return []
+        return x if isinstance(x, (list, tuple)) else [x]
+
+    def _to_data_url(self, item: Any, fallback_mime: str) -> str:
+        # Support {"base64": "...", "mime_type": "..."} / {"path": "..."} / {"url": "..."}
+        if isinstance(item, dict):
+            if item.get("url"):
+                return str(item["url"])
+            if item.get("base64"):
+                mt = str(item.get("mime_type") or fallback_mime)
+                return f"data:{mt};base64,{item['base64']}"
+            if item.get("path"):
+                item = item["path"]
+
+        if isinstance(item, (bytes, bytearray)):
+            return f"data:{fallback_mime};base64,{base64.b64encode(item).decode('utf-8')}"
+
+        s = str(item)
+        if s.startswith("data:") or s.startswith("http://") or s.startswith("https://"):
+            return s
+        if os.path.exists(s):
+            return f"data:{_mime(s) or fallback_mime};base64,{self._encode_file(s)}"
+
+        # If not a file/URL, treat it as a raw base64 payload.
+        return f"data:{fallback_mime};base64,{s}"
+
     def _encode_image(self, path: str) -> str:
-        import base64
+        return self._encode_file(path)
+
+    def _encode_file(self, path: str) -> str:
         with open(path, "rb") as f:
             return base64.b64encode(f.read()).decode("utf-8")
         
