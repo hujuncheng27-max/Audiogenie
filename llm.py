@@ -177,7 +177,7 @@ class OpenaiLLM(LLM):
             content.append({"type": "video_url", "video_url": {"url": self._to_data_url(vid, fallback_mime="video/mp4")}})
 
         for aud in self._to_list(media.get("audio")):
-            content.append({"type": "audio_url", "audio_url": {"url": self._to_data_url(aud, fallback_mime="audio/mpeg")}})
+            content.append({"type": "input_audio", "input_audio": self._to_input_audio(aud)})
 
         messages = [{"role": "system", "content": system}, {"role": "user", "content": content}]
 
@@ -211,6 +211,54 @@ class OpenaiLLM(LLM):
 
         # If not a file/URL, treat it as a raw base64 payload.
         return f"data:{fallback_mime};base64,{s}"
+
+    def _audio_format(self, item: Any, default_fmt: str = "wav") -> str:
+        if isinstance(item, dict):
+            fmt = item.get("format")
+            if isinstance(fmt, str) and fmt.strip():
+                return fmt.strip().lower()
+            mt = str(item.get("mime_type") or "").lower()
+            if "wav" in mt:
+                return "wav"
+            if "mpeg" in mt or "mp3" in mt:
+                return "mp3"
+        s = str(item)
+        ext = os.path.splitext(s)[1].lower().lstrip(".")
+        if ext in ("wav", "mp3", "m4a", "flac", "ogg"):
+            return ext
+        return default_fmt
+
+    def _to_input_audio(self, item: Any) -> Dict[str, str]:
+        # OpenAI-compatible multimodal input uses:
+        # {"type": "input_audio", "input_audio": {"data": "...", "format": "wav"}}
+        if isinstance(item, dict):
+            if item.get("url"):
+                return {"data": str(item["url"]), "format": self._audio_format(item)}
+            if item.get("base64"):
+                return {"data": str(item["base64"]), "format": self._audio_format(item)}
+            if item.get("path"):
+                item = item["path"]
+
+        if isinstance(item, (bytes, bytearray)):
+            return {
+                "data": base64.b64encode(bytes(item)).decode("utf-8"),
+                "format": "wav",
+            }
+
+        s = str(item)
+        if s.startswith("http://") or s.startswith("https://"):
+            return {"data": s, "format": self._audio_format(s)}
+        if s.startswith("data:"):
+            # Keep data URL as-is for compatibility with endpoints that accept URLs in `data`.
+            return {"data": s, "format": self._audio_format(s)}
+        if os.path.exists(s):
+            return {
+                "data": self._encode_file(s),
+                "format": self._audio_format(s),
+            }
+
+        # Fallback: treat as raw base64 string.
+        return {"data": s, "format": "wav"}
 
     def _encode_image(self, path: str) -> str:
         return self._encode_file(path)

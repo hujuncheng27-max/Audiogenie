@@ -188,11 +188,14 @@ class SFXExpert(BaseExpert):
             video_arg = f'--video "{video_path}"'
             video_stem = os.path.splitext(os.path.basename(video_path))[0]
             probe_wav_path = os.path.join(probe_dir, f"{video_stem}_probe.wav")
+            # take first event with sound effect
+            first_ev = next((e for e in events if _norm_type(e.audio_type) in ("sound effect", "sound_effect", "sfx")), None)
+            text = (first_ev.object) if first_ev else ""
 
             args = {
                 "variant": "large_44k_v2",
                 "video_arg": video_arg,
-                "text": "",
+                "text": text,
                 "seconds": int(max(1, round(probe_seconds))),
                 "cfg_strength": 4.5,
                 "num_steps": 25,
