@@ -6,7 +6,7 @@ from tools_v2 import ToolLibrary, run_tool
 from tool.base import ToolRunError
 from critiquers import AudioEvalCritic
 from llm import LLM
-from critiquers import AudioEvalCritic
+from tree_memory import TreeMemory, SCORE_WEIGHTS
 from utils.runtime_logger import log_step
 
 
@@ -25,11 +25,14 @@ def _sec_from_event(ev: Dict[str, Any]) -> float:
 def _norm_type(t: str) -> str:
     return (t or "").strip().lower()
 
+def _weighted_score(scores: Dict[str, float]) -> float:
+    return sum(scores.get(k, 0.0) * w for k, w in SCORE_WEIGHTS.items())
+
 def _best_threshold_met(scores: Dict[str, float]) -> bool:
     return (
-        scores.get("quality", 0.0) >= 0.7 and
         scores.get("alignment", 0.0) >= 0.7 and
-        scores.get("aesthetics", 0.0) >= 0.7
+        scores.get("quality", 0.0) >= 0.6 and
+        scores.get("aesthetics", 0.0) >= 0.6
     )
 
 def _pick_text_key(args: Dict[str, Any]) -> Optional[str]:
@@ -46,7 +49,6 @@ def _as_flag(k: str, v) -> List[str]:
     return [f"--{k}", str(v)]
 
 
-# ============== ToT ==============
 @dataclass
 class ToTNode:
     node_id: str
@@ -86,7 +88,7 @@ class ToTExecutor:
         return n
 
     def _revise_text_prompt(self, model: str, prev_args: Dict[str, Any], event: Dict[str, Any],
-                            scores: Dict[str, float], suggestions: List[str]) -> Dict[str, Any]:
+                            memory_context: Dict[str, Any], focus: str = "general") -> Dict[str, Any]:
         if model not in ("MMAudio", "InspireMusic", "CosyVoice2", "DiffRhythm"):
             return prev_args
 
@@ -94,15 +96,23 @@ class ToTExecutor:
         if not text_key:
             return prev_args
 
+        _FOCUS_HINTS: Dict[str, str] = {
+            "alignment": "FOCUS on temporal precision and semantic match with the event's described start/end time and object.",
+            "quality":   "FOCUS on acoustic clarity, sound fidelity, and richness of audio detail.",
+            "aesthetics":"FOCUS on stylistic appropriateness and emotional fit with the scene.",
+            "general":   "Improve overall audio quality, alignment, and aesthetic appeal.",
+        }
+
         system = (
             "You are an audio prompt refining assistant. "
-            "Given the previous generation arguments and evaluation feedback, "
+            "Given the previous generation arguments and the full exploration history, "
             "rewrite ONLY the text prompt to better match the described scene and timing. "
+            "Learn from all past attempts and suggestions to avoid repeating mistakes. "
             "Return JSON with one field: {\"text\": \"...\"}."
         )
         user = json.dumps({
             "model": model,
-            "previous_args": prev_args,
+            "current_args": prev_args,
             "event": {
                 "audio_type": event.get("audio_type"),
                 "Object": event.get("Object"),
@@ -111,12 +121,14 @@ class ToTExecutor:
                 "end_time": event.get("end_time"),
                 "duration": event.get("duration"),
             },
-            "eval_scores": scores,
-            "eval_suggestions": suggestions,
+            "memory_context": memory_context,
+            "refinement_focus": _FOCUS_HINTS.get(focus, _FOCUS_HINTS["general"]),
             "requirements": [
                 "Keep structure unchanged; revise only the text field.",
                 "Respect timing/duration and scene realism.",
-                "Avoid generic terms; add concrete acoustic details."
+                "Avoid generic terms; add concrete acoustic details.",
+                "Learn from all past attempts in memory_context to avoid repeating the same mistakes.",
+                "Pay special attention to the refinement_focus instruction above."
             ]
         }, ensure_ascii=False)
 
@@ -134,6 +146,64 @@ class ToTExecutor:
         except Exception:
             pass
         return prev_args
+
+    def _diagnose_failure(self, scores: Dict[str, float]) -> str:
+        dims = ("alignment", "quality", "aesthetics")
+        return min(dims, key=lambda k: scores.get(k, 0.0))
+
+    def _should_abandon_model(self, memory: TreeMemory, model: str) -> bool:
+        history = memory.get_model_history(model)
+        if len(history) < 2:
+            return False
+        delta = history[-1].weighted_score - history[-2].weighted_score
+        return delta <= 0.0
+
+    def _prewarm_initial_args(self, model: str, base_args: Dict[str, Any],
+                               event: Dict[str, Any],
+                               prior_suggestions: List[str]) -> Dict[str, Any]:
+        if model not in ("MMAudio", "InspireMusic", "CosyVoice2", "DiffRhythm"):
+            return base_args
+        text_key = _pick_text_key(base_args)
+        if not text_key or not prior_suggestions:
+            return base_args
+
+        system = (
+            "You are an audio prompt assistant. "
+            "Prior generation attempts with other models have failed. "
+            "Write an improved initial prompt for a new model that avoids these known issues. "
+            "Return JSON with one field: {\"text\": \"...\"}."
+        )
+        user = json.dumps({
+            "model": model,
+            "current_args": base_args,
+            "event": {
+                "audio_type": event.get("audio_type"),
+                "description": event.get("description"),
+                "start_time": event.get("start_time"),
+                "end_time": event.get("end_time"),
+            },
+            "prior_model_suggestions": prior_suggestions,
+            "requirements": [
+                "Write a fresh, improved prompt avoiding known failure patterns.",
+                "Respect timing/duration and scene realism.",
+                "Add concrete acoustic details.",
+            ]
+        }, ensure_ascii=False)
+
+        try:
+            raw = self.llm.chat(system, user)
+            raw = (raw or "").strip()
+            m = re.search(r"```(?:json)?\s*(.*?)\s*```", raw, flags=re.DOTALL | re.IGNORECASE)
+            if m:
+                raw = m.group(1)
+            obj = json.loads(raw)
+            if isinstance(obj, dict) and isinstance(obj.get("text"), str) and obj["text"].strip():
+                new_args = copy.deepcopy(base_args)
+                new_args[text_key] = obj["text"].strip()
+                return new_args
+        except Exception:
+            pass
+        return base_args
 
     def _call_model(self, model_name: str, args: Dict[str, Any], out_wav: str, workdir: str) -> Tuple[str, Dict[str, Any]]:
         a = copy.deepcopy(args)
@@ -182,28 +252,38 @@ class ToTExecutor:
             nodes_snapshot = {nid: self.nodes[nid].__dict__ for nid in self.nodes}
             return "", {"quality":0,"alignment":0,"aesthetics":0}, nodes_snapshot
 
+        memory = TreeMemory()
         best_wav: Optional[str] = None
         best_scores: Dict[str, float] = {"quality": 0.0, "alignment": 0.0, "aesthetics": 0.0}
 
         for model_name in candidates:
-            log_step(f"ToT candidate start: model={model_name}")
+            log_step(f"Memory Tree candidate start: model={model_name}")
             base_args = copy.deepcopy(refined_inputs)
             tries = 1 + self.prompt_max_retries
+            prev_node_id = root.node_id
             prev_scores: Dict[str, float] = {}
-            prev_suggestions: List[str] = []
+
+            if len(memory) > 0:
+                prior_suggestions = memory.get_all_suggestions(deduplicate=True)
+                base_args = self._prewarm_initial_args(model_name, base_args, event, prior_suggestions)
+                log_step(f"Memory Tree: prewarmed initial args for model={model_name}")
 
             for attempt in range(tries):
-                log_step(f"ToT generation attempt: model={model_name}, attempt={attempt + 1}/{tries}")
+                log_step(f"Memory Tree attempt: model={model_name}, attempt={attempt + 1}/{tries}")
                 node = self._new_node(
                     "generation" if attempt == 0 else "refinement",
-                    parent=root.node_id,
+                    parent=prev_node_id,
                     model=model_name,
                     attempt=attempt
                 )
 
-                args = base_args if attempt == 0 else self._revise_text_prompt(
-                    model_name, base_args, event, prev_scores, prev_suggestions
-                )
+                if attempt == 0:
+                    args = base_args
+                else:
+                    failure_dim = self._diagnose_failure(prev_scores)
+                    log_step(f"Memory Tree: refinement focus={failure_dim}")
+                    mem_context = memory.to_refinement_context(prev_node_id)
+                    args = self._revise_text_prompt(model_name, base_args, event, mem_context, focus=failure_dim)
 
                 out_wav = os.path.join(workdir, f"{node.node_id}_{model_name}.wav")
                 wav_path, meta_extras = self._call_model(model_name, args, out_wav, workdir)
@@ -216,25 +296,48 @@ class ToTExecutor:
                 if "stderr" in meta_extras: node.meta["stderr"] = meta_extras["stderr"]
                 if "mp4" in meta_extras: node.meta["mp4"] = meta_extras["mp4"]
 
-                scores, suggestions = self.critic.evaluate(event, wav_path, self.llm)
+                if not wav_path or not os.path.exists(wav_path):
+                    scores = {"quality": 0.0, "alignment": 0.0, "aesthetics": 0.0}
+                    suggestions = [f"Tool failed to generate valid audio output"]
+                    log_step(f"Tool output validation failed: {wav_path}")
+                else:
+                    scores, suggestions = self.critic.evaluate(event, wav_path, self.llm)
                 node.meta["scores"] = scores
+                node.meta["weighted_score"] = _weighted_score(scores)
                 node.meta["suggestions"] = suggestions
-                log_step(f"ToT evaluation: model={model_name}, scores={scores}")
+                log_step(f"Memory Tree evaluation: model={model_name}, scores={scores}, weighted={_weighted_score(scores):.3f}")
 
-                if sum(scores.values()) > sum(best_scores.values()):
+                memory.record(
+                    node_id=node.node_id,
+                    model=model_name,
+                    attempt=attempt,
+                    node_type=node.node_type,
+                    parent_id=node.parent,
+                    args_used=args,
+                    scores=scores,
+                    suggestions=suggestions,
+                )
+
+                if _weighted_score(scores) > _weighted_score(best_scores):
                     best_scores = scores
                     best_wav = wav_path
-                    log_step(f"ToT best update: model={model_name}, wav={best_wav}")
+                    log_step(f"Memory Tree best update: model={model_name}, weighted={_weighted_score(scores):.3f}")
 
                 if _best_threshold_met(scores):
-                    log_step(f"ToT early stop: model={model_name} reached threshold")
+                    log_step(f"Memory Tree early stop: model={model_name} met threshold")
                     nodes_snapshot = {nid: self.nodes[nid].__dict__ for nid in self.nodes}
+                    nodes_snapshot["_memory"] = memory.to_dict()
                     return wav_path or "", scores, nodes_snapshot
 
-                base_args = args
+                if self._should_abandon_model(memory, model_name):
+                    log_step(f"Memory Tree: abandon model={model_name} (weighted score not improving), switching")
+                    break
+
+                prev_node_id = node.node_id
                 prev_scores = scores
-                prev_suggestions = suggestions
+                base_args = args
 
         nodes_snapshot = {nid: self.nodes[nid].__dict__ for nid in self.nodes}
-        log_step("ToT finished: returning best candidate")
+        nodes_snapshot["_memory"] = memory.to_dict()
+        log_step("Memory Tree finished: returning best candidate")
         return best_wav or "", best_scores, nodes_snapshot

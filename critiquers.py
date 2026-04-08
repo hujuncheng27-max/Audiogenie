@@ -102,6 +102,13 @@ class AudioEvalCritic:
         """
         Return (scores, suggestions)
         """
+        import os
+        if not wav_path or not isinstance(wav_path, str) or wav_path.strip() == "":
+            return {"quality": 0.0, "alignment": 0.0, "aesthetics": 0.0}, ["Error: No audio file path provided"]
+        
+        if not os.path.exists(wav_path):
+            return {"quality": 0.0, "alignment": 0.0, "aesthetics": 0.0}, [f"Error: Audio file not found: {wav_path}"]
+        
         system = "You are an audio critic. Evaluate the following audio on quality, alignment to the described event, and overall aesthetics. Return JSON like: {\"quality\":0.7, \"alignment\":0.6, \"aesthetics\":0.5, \"suggestions\": [\"...\"]}."
         user = json.dumps({"event": event}, ensure_ascii=False)
 
