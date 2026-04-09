@@ -2,6 +2,9 @@ import os, json, mimetypes
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 import requests, base64
+import time
+import uuid
+from urllib.parse import quote
 
 _MAX_INLINE_BYTES = int(os.environ.get("GEMINI_INLINE_LIMIT", str(15 * 1024 * 1024)))
 
@@ -142,14 +145,92 @@ class GeminiLLM(LLM):
 
 
 class OpenaiLLM(LLM):
-    def __init__(self, model: str = "gpt-4o", api_key: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(self, model: str = "gpt-4o", api_key: Optional[str] = None, base_url: Optional[str] = None, **parameters):
         self.model = model
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         self.base_url = base_url
+        self.hf_cache_repo_id = str(parameters.get("hf_cache_repo_id") or os.environ.get("HF_CACHE_REPO_ID") or "").strip()
+        self.hf_cache_repo_type = str(parameters.get("hf_cache_repo_type") or os.environ.get("HF_CACHE_REPO_TYPE") or "dataset").strip() or "dataset"
+        self.hf_cache_token = str(parameters.get("hf_cache_token") or os.environ.get("HF_TOKEN") or "").strip()
+        self.hf_cache_prefix = str(parameters.get("hf_cache_prefix") or os.environ.get("HF_CACHE_PREFIX") or "videos").strip("/")
+        self.hf_cache_cleanup = bool(parameters.get("hf_cache_cleanup", False))
+        self._hf_api = None
+
         if not self.api_key:
             raise RuntimeError("OPENAI_API_KEY not set.")
         self._client = None
         self._init_client()
+
+    def _hf_enabled(self) -> bool:
+        return bool(self.hf_cache_repo_id)
+
+    def _get_hf_api(self):
+        if not self._hf_enabled():
+            return None
+        if self._hf_api is None:
+            try:
+                from huggingface_hub import HfApi
+            except Exception as e:
+                raise RuntimeError(
+                    "huggingface_hub not installed. Please install it with: pip install huggingface_hub"
+                ) from e
+            self._hf_api = HfApi()
+        return self._hf_api
+
+    def _to_hf_resolve_url(self, path_in_repo: str) -> str:
+        safe_path = quote(path_in_repo.strip("/"), safe="/")
+        if self.hf_cache_repo_type == "dataset":
+            return f"https://huggingface.co/datasets/{self.hf_cache_repo_id}/resolve/main/{safe_path}"
+        return f"https://huggingface.co/{self.hf_cache_repo_id}/resolve/main/{safe_path}"
+
+    def _upload_file_to_hf_cache(self, local_path: str) -> Optional[Dict[str, str]]:
+        if not self._hf_enabled():
+            return None
+        if not self.hf_cache_token:
+            raise RuntimeError(
+                "HF cache is enabled but no token was provided. "
+                "Please set `hf_cache_token` in config or environment variable `HF_TOKEN`."
+            )
+
+        p = str(local_path)
+        name = os.path.basename(p)
+        stamp = int(time.time() * 1000)
+        rand = uuid.uuid4().hex[:8]
+        remote_dir = self.hf_cache_prefix or "videos"
+        remote_path = f"{remote_dir}/{stamp}_{rand}_{name}"
+
+        api = self._get_hf_api()
+        api.upload_file(
+            path_or_fileobj=p,
+            path_in_repo=remote_path,
+            repo_id=self.hf_cache_repo_id,
+            repo_type=self.hf_cache_repo_type,
+            token=self.hf_cache_token,
+        )
+
+        return {
+            "url": self._to_hf_resolve_url(remote_path),
+            "path_in_repo": remote_path,
+        }
+
+    def _cleanup_hf_cached_files(self, uploaded_paths: List[str]) -> None:
+        if not uploaded_paths or not self.hf_cache_cleanup or not self._hf_enabled() or not self.hf_cache_token:
+            return
+        try:
+            api = self._get_hf_api()
+            for path_in_repo in uploaded_paths:
+                try:
+                    api.delete_file(
+                        path_in_repo=path_in_repo,
+                        repo_id=self.hf_cache_repo_id,
+                        repo_type=self.hf_cache_repo_type,
+                        token=self.hf_cache_token,
+                    )
+                except Exception:
+                    # cleanup best-effort only
+                    pass
+        except Exception:
+            pass
 
     def _init_client(self):
         try:
@@ -164,6 +245,7 @@ class OpenaiLLM(LLM):
 
         media = media or {}
         content = []
+        uploaded_paths: List[str] = []
         
         content.append({"type": "text", "text": user})
 
@@ -171,25 +253,28 @@ class OpenaiLLM(LLM):
             content.append({"type": "text", "text": str(text)})
 
         for img in self._to_list(media.get("images")):
-            content.append({"type": "image_url", "image_url": {"url": self._to_data_url(img, fallback_mime="image/jpeg")}})
+            content.append({"type": "image_url", "image_url": {"url": self._to_data_url(img, fallback_mime="image/jpeg", uploaded_paths=uploaded_paths)}})
 
         for vid in self._to_list(media.get("videos")):
-            content.append({"type": "video_url", "video_url": {"url": self._to_data_url(vid, fallback_mime="video/mp4")}})
+            content.append({"type": "video_url", "video_url": {"url": self._to_data_url(vid, fallback_mime="video/mp4", uploaded_paths=uploaded_paths)}})
 
         for aud in self._to_list(media.get("audio")):
-            content.append({"type": "input_audio", "input_audio": self._to_input_audio(aud)})
+            content.append({"type": "input_audio", "input_audio": self._to_input_audio(aud, uploaded_paths=uploaded_paths)})
 
         messages = [{"role": "system", "content": system}, {"role": "user", "content": content}]
 
-        resp = self._client.chat.completions.create(model=self.model, messages=messages, stop=stop)
-        return resp.choices[0].message.content or ""
+        try:
+            resp = self._client.chat.completions.create(model=self.model, messages=messages, stop=stop)
+            return resp.choices[0].message.content or ""
+        finally:
+            self._cleanup_hf_cached_files(uploaded_paths)
 
     def _to_list(self, x):
         if not x:
             return []
         return x if isinstance(x, (list, tuple)) else [x]
 
-    def _to_data_url(self, item: Any, fallback_mime: str) -> str:
+    def _to_data_url(self, item: Any, fallback_mime: str, uploaded_paths: Optional[List[str]] = None) -> str:
         # Support {"base64": "...", "mime_type": "..."} / {"path": "..."} / {"url": "..."}
         if isinstance(item, dict):
             if item.get("url"):
@@ -207,6 +292,13 @@ class OpenaiLLM(LLM):
         if s.startswith("data:") or s.startswith("http://") or s.startswith("https://"):
             return s
         if os.path.exists(s):
+            if self._hf_enabled():
+                uploaded = self._upload_file_to_hf_cache(s)
+                if uploaded and uploaded.get("url"):
+                    if uploaded_paths is not None and uploaded.get("path_in_repo"):
+                        uploaded_paths.append(str(uploaded["path_in_repo"]))
+                    return str(uploaded["url"])
+                raise RuntimeError(f"HF upload succeeded without URL for file: {s}")
             return f"data:{_mime(s) or fallback_mime};base64,{self._encode_file(s)}"
 
         # If not a file/URL, treat it as a raw base64 payload.
@@ -228,7 +320,7 @@ class OpenaiLLM(LLM):
             return ext
         return default_fmt
 
-    def _to_input_audio(self, item: Any) -> Dict[str, str]:
+    def _to_input_audio(self, item: Any, uploaded_paths: Optional[List[str]] = None) -> Dict[str, str]:
         # OpenAI-compatible multimodal input uses:
         # {"type": "input_audio", "input_audio": {"data": "...", "format": "wav"}}
         if isinstance(item, dict):
@@ -252,6 +344,16 @@ class OpenaiLLM(LLM):
             # Keep data URL as-is for compatibility with endpoints that accept URLs in `data`.
             return {"data": s, "format": self._audio_format(s)}
         if os.path.exists(s):
+            if self._hf_enabled():
+                uploaded = self._upload_file_to_hf_cache(s)
+                if uploaded and uploaded.get("url"):
+                    if uploaded_paths is not None and uploaded.get("path_in_repo"):
+                        uploaded_paths.append(str(uploaded["path_in_repo"]))
+                    return {
+                        "data": str(uploaded["url"]),
+                        "format": self._audio_format(s),
+                    }
+                raise RuntimeError(f"HF upload succeeded without URL for audio: {s}")
             return {
                 "data": self._encode_file(s),
                 "format": self._audio_format(s),
