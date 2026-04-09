@@ -151,7 +151,7 @@ def main() -> None:
                 AudioEvent(
                     audio_type="song",
                     start_time=0.0,
-                    end_time=5.0,
+                    end_time=10.0,
                     description="A lyrical pop ballad with warm emotional tone.",
                     volume_db=-14.0,
                     object="Song",
@@ -170,7 +170,7 @@ def main() -> None:
                 if isinstance(payload, dict):
                     has_prompt = str(payload.get("ref_prompt") or payload.get("text_prompt") or "").strip()
                     if not has_prompt:
-                        payload["ref_prompt"] = "Pop Emotional Piano"
+                        payload["ref_prompt"] = "Pop Emotional"
 
             print("[TRACE] stage2 model_candidates:", e0.model_candidates)
             print("[TRACE] stage2 refined_inputs:")

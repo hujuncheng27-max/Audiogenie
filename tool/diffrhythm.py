@@ -42,6 +42,50 @@ class DiffRhythmTool(GradioTool):
         except Exception:
             return 95.0
 
+    def _trim_seconds(self, args: Dict[str, Any]) -> Optional[float]:
+        """Resolve target output duration for explicit post-generation trim."""
+        for key in ("trim_seconds", "real_seconds", "duration", "seconds", "target_seconds"):
+            if key in args and args.get(key) not in (None, ""):
+                return self._positive_seconds_or_none(args.get(key))
+        return None
+
+    def _api_music_duration(self, args: Dict[str, Any], trim_seconds: Optional[float]) -> float:
+        """Resolve API Music_Duration with independent min/max constraints."""
+        api_raw = (
+            args.get("api_music_duration")
+            or args.get("api_seconds")
+            or args.get("Music_Duration")
+            or args.get("seconds")
+            or trim_seconds
+            or self.config.get("parameters", {}).get("Music_Duration", 95)
+        )
+        try:
+            api_seconds = float(api_raw)
+        except Exception:
+            api_seconds = 95.0
+
+        # Legacy DiffRhythm length constraints from the old script.
+        min_api = self._positive_seconds_or_none(
+            args.get("api_min_seconds", self.config.get("parameters", {}).get("api_min_seconds", 95))
+        )
+        max_api = self._positive_seconds_or_none(
+            args.get("api_max_seconds", self.config.get("parameters", {}).get("api_max_seconds", 285))
+        )
+
+        if min_api is not None and max_api is not None and min_api > max_api:
+            min_api, max_api = max_api, min_api
+
+        if min_api is not None and api_seconds < min_api:
+            api_seconds = min_api
+        if max_api is not None and api_seconds > max_api:
+            api_seconds = max_api
+
+        # Keep parity with legacy normalization: 95 < x < 96 -> 96.
+        if min_api is not None and min_api >= 95.0 and 95.0 < api_seconds < 96.0:
+            api_seconds = 96.0
+
+        return float(api_seconds)
+
     def _file_type(self, args: Dict[str, Any]) -> str:
         ft = args.get("file_type", self.config.get("parameters", {}).get("file_type", "mp3"))
         if ft in ("wav", "mp3", "ogg"):
@@ -93,6 +137,8 @@ class DiffRhythmTool(GradioTool):
             args.update(tool_args)
 
         started = self._log_start(args, output_wav)
+        trim_seconds = self._trim_seconds(args)
+        api_music_duration = self._api_music_duration(args, trim_seconds)
 
         lrc = self._read_lrc(args)
         text_prompt = str(args.get("ref_prompt") or args.get("text_prompt") or "")
@@ -117,7 +163,7 @@ class DiffRhythmTool(GradioTool):
             file_type=self._file_type(args),
             odeint_method=self._odeint_method(args),
             preference_infer=self._preference(args),
-            Music_Duration=self._music_duration(args),
+            Music_Duration=api_music_duration,
             api_name="/infer_music",
         )
 
@@ -127,6 +173,7 @@ class DiffRhythmTool(GradioTool):
             result_path = str(result)
 
         final_path = self._materialize_output(result_path, output_wav)
+        final_path = self._trim_audio_to_seconds(final_path, trim_seconds)
         self._log_success(started, final_path)
         return final_path
 

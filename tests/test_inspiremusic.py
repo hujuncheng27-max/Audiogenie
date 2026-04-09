@@ -17,6 +17,7 @@ import os
 import sys
 import tempfile
 import traceback
+import wave
 from pathlib import Path
 from unittest.mock import patch
 
@@ -28,6 +29,16 @@ from tools_v2 import ToolLibrary
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = os.path.join(ROOT, "template/config_template.yaml")
+
+
+def _write_silent_wav(path: str, duration_sec: float = 1.0, sample_rate: int = 24000) -> None:
+    nframes = int(max(duration_sec, 0.1) * sample_rate)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(path, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(b"\x00\x00" * nframes)
 
 
 def _find_inspiremusic_tool_name(tool_lib: ToolLibrary) -> str:
@@ -105,12 +116,12 @@ def test_chorus_invalid_falls_back():
 
 def test_output_sample_rate_default():
     tool = _make_tool()
-    assert tool._output_sample_rate({}) == "48000"
+    assert tool._output_sample_rate({}) == 48000
 
 
 def test_output_sample_rate_invalid_falls_back():
     tool = _make_tool()
-    assert tool._output_sample_rate({"output_sample_rate": "16000"}) == "48000"
+    assert tool._output_sample_rate({"output_sample_rate": "16000"}) == 48000
 
 
 def test_seconds_alias_for_max_generate_audio_seconds():
@@ -135,7 +146,7 @@ def test_missing_text_raises():
 def test_run_calls_t2m_api_with_expected_kwargs():
     tool = _make_tool()
     fake_output = "/tmp/_inspiremusic_test_out.wav"
-    Path(fake_output).touch()
+    _write_silent_wav(fake_output, duration_sec=20.0)
     try:
         with patch.object(tool, "_predict", return_value=fake_output) as mock_predict:
             result = tool.run({"text": "calm piano", "seconds": 9, "chorus": "verse"})
@@ -167,7 +178,7 @@ def test_run_accepts_tuple_result_and_copies_to_output_wav():
 def test_nested_args_unwrapped():
     tool = _make_tool()
     fake_output = "/tmp/_inspiremusic_test_nested.wav"
-    Path(fake_output).touch()
+    _write_silent_wav(fake_output, duration_sec=20.0)
     nested = {_TOOL_SPEC.name: {"text": "soft lo-fi", "chorus": "chorus", "seconds": 6}}
     try:
         with patch.object(tool, "_predict", return_value=fake_output):

@@ -3,7 +3,9 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import tempfile
 import time
+import wave
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -132,6 +134,86 @@ class BaseTool:
 		if src.resolve() != dst.resolve():
 			shutil.copyfile(src, dst)
 		return str(dst)
+
+	def _positive_seconds_or_none(self, value: Any) -> Optional[float]:
+		"""Coerce any value to positive seconds, or return None when invalid."""
+		try:
+			sec = float(value)
+		except Exception:
+			return None
+		if sec <= 0:
+			return None
+		return sec
+
+	def _trim_wav_in_place(self, wav_path: Path, seconds: float) -> None:
+		"""Trim a WAV file in-place to the first `seconds` seconds."""
+		with wave.open(str(wav_path), "rb") as reader:
+			n_channels = reader.getnchannels()
+			sampwidth = reader.getsampwidth()
+			framerate = reader.getframerate()
+			nframes = reader.getnframes()
+			frames_to_copy = min(nframes, int(seconds * framerate))
+
+			# No trim required.
+			if frames_to_copy >= nframes:
+				return
+
+			fd, tmp_name = tempfile.mkstemp(prefix=f"{wav_path.stem}_trim_", suffix=".wav", dir=str(wav_path.parent))
+			os.close(fd)
+			try:
+				with wave.open(tmp_name, "wb") as writer:
+					writer.setnchannels(n_channels)
+					writer.setsampwidth(sampwidth)
+					writer.setframerate(framerate)
+
+					remaining = frames_to_copy
+					chunk = 4096
+					while remaining > 0:
+						to_read = min(remaining, chunk)
+						data = reader.readframes(to_read)
+						if not data:
+							break
+						writer.writeframes(data)
+						remaining -= to_read
+				os.replace(tmp_name, str(wav_path))
+			finally:
+				if os.path.exists(tmp_name):
+					os.unlink(tmp_name)
+
+	def _trim_audio_to_seconds(self, audio_path: str, seconds: Optional[float]) -> str:
+		"""Trim a generated audio file in-place when `seconds` is valid."""
+		target = self._positive_seconds_or_none(seconds)
+		if target is None:
+			return audio_path
+
+		src = Path(audio_path).expanduser()
+		if not src.exists():
+			raise self._tool_error(f"Cannot trim missing audio file: {src}")
+
+		# Fast path: WAV can be trimmed with stdlib only.
+		try:
+			self._trim_wav_in_place(src, target)
+			return str(src)
+		except Exception:
+			pass
+
+		# Fallback for non-wav formats: pydub decoding/encoding.
+		try:
+			from pydub import AudioSegment
+
+			audio = AudioSegment.from_file(str(src))
+			target_ms = int(target * 1000)
+			if target_ms >= len(audio):
+				return str(src)
+
+			trimmed = audio[:target_ms]
+			fmt = (src.suffix or ".wav").lstrip(".") or "wav"
+			tmp = src.with_name(f"{src.stem}.trimmed{src.suffix or '.wav'}")
+			trimmed.export(str(tmp), format=fmt)
+			os.replace(str(tmp), str(src))
+			return str(src)
+		except Exception as e:
+			raise self._tool_error(f"Failed to trim audio to {target:.2f}s at {src}: {type(e).__name__}: {e}") from e
 
 
 class GradioTool(BaseTool):
