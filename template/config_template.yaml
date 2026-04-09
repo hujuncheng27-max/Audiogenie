@@ -75,3 +75,30 @@ tools:
       cfg_strength: 4.5
       duration: 8
       default_video_prompt: "Generate natural, synchronized sound effects that match the visual actions in the video."
+
+  diffrhythm_online:
+    provider: "gradio"
+    task: "song_gen"
+    default_model: "ASLP-lab/DiffRhythm"
+    space: "ASLP-lab/DiffRhythm"
+    hf_token: ""
+    inputs:
+      - lrc_path
+      - lrc
+      - ref_audio_path
+      - ref_prompt
+      - text_prompt
+      - seed
+      - randomize_seed
+      - steps
+      - cfg_strength
+      - file_type
+      - odeint_method
+      - preference_infer
+      - seconds
+      - Music_Duration
+    notes: "DiffRhythm online song generation via Gradio API."
+    parameters:
+      file_type: "mp3"
+      odeint_method: "euler"
+      preference_infer: "quality first"
