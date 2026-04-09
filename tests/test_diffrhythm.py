@@ -274,7 +274,6 @@ def test_live_infer_music():
         lrc=SAMPLE_LRC,
         ref_audio_path=None,
         text_prompt="Pop Emotional Piano",
-        current_prompt_type="text",
         seed=0,
         randomize_seed=True,
         steps=32,
@@ -285,6 +284,8 @@ def test_live_infer_music():
         Music_Duration=8,
         api_name="/infer_music",
     )
+    print(f"\n[DEBUG] Raw API result: {result}")
+    print(f"[DEBUG] Result type: {type(result)}")
     assert result, "API returned empty result"
     print(f"\n[live] tool={tool_name} endpoint={endpoint} returned: {result}")
 

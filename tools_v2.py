@@ -9,6 +9,7 @@ from tool.base import BaseTool, ToolSpec
 from tool.cosyvoice2 import CosyVoice2Tool
 from tool.cosyvoice3 import CosyVoice3Tool
 from tool.diffrhythm import DiffRhythmTool
+from tool.inspiremusic import InspireMusicTool
 from tool.mmaudio import MMAudioTool
 from utils.runtime_logger import instrument_tool_run
 
@@ -53,6 +54,8 @@ class ToolLibrary:
             return instrument_tool_run(MMAudioTool(spec, **tool_config))
         if "diffrhythm" in identity:
             return instrument_tool_run(DiffRhythmTool(spec, **tool_config))
+        if "inspiremusic" in identity:
+            return instrument_tool_run(InspireMusicTool(spec, **tool_config))
         if "cosyvoice2" in identity:
             return instrument_tool_run(CosyVoice2Tool(spec, **tool_config))
         if "cosyvoice3" in identity or "cosyvoice" in identity:
