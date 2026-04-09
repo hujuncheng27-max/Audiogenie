@@ -104,10 +104,8 @@ class DiffRhythmTool(GradioTool):
             ref_audio = self._ref_audio_payload(ref_audio_path)
         else:
             # Use the API default sample when no reference audio is provided.
-            ref_audio = handle_file(
-                "https://github.com/gradio-app/gradio/raw/main/test/test_files/audio_sample.wav"
-            )
-
+            ref_audio = None
+            
         result = self._predict(
             lrc=lrc,
             ref_audio_path=ref_audio,

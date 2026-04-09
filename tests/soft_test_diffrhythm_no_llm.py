@@ -144,7 +144,7 @@ def main() -> None:
         _write_silent_wav(ref_audio, duration_sec=1.0)
 
         old_prompt_song = os.environ.get("PROMPT_SONG")
-        os.environ["PROMPT_SONG"] = ref_audio
+        os.environ["PROMPT_SONG"] = ""
 
         try:
             events = [

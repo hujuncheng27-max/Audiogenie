@@ -510,7 +510,7 @@ class SongExpert(BaseExpert):
             lrc_path, gemini_ref_prompt = self._synthesize_lrc(llm, e.description or e.object or "流行抒情", dur, lrc_path)
 
             # 2) ref-audio-path / ref-prompt 
-            prompt_wav = os.environ.get("PROMPT_SONG", "/hpc2hdd/home/yrong854/jhaidata/music/DiffRhythm/infer/example/pop_cn.wav")
+            prompt_wav = os.environ.get("PROMPT_SONG", None)
             # prompt_wav = None
             ref_audio_path = getattr(e, "ref_audio_path", None) or plan_ctx.get("ref_audio_path")  or prompt_wav
             ref_prompt     = getattr(e, "ref_prompt",     None) or plan_ctx.get("ref_prompt") or gemini_ref_prompt
