@@ -18,22 +18,18 @@ import sys
 import tempfile
 import traceback
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 # Allow imports from project root.
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from tool.base import ToolRunError, ToolSpec
-from tool.diffrhythm import DiffRhythmTool
+from tool.base import ToolRunError
+from tools_v2 import ToolLibrary
 
 # ── fixtures ───────────────────────────────────────────────────────────────────
 
-SPEC = ToolSpec(
-    name="diffrhythm",
-    task="song",
-    provider="gradio",
-    default_model="ASLP-lab/DiffRhythm",
-)
+ROOT = Path(__file__).resolve().parents[1]
+CONFIG_PATH = os.path.join(ROOT, "template/config_template.yaml")
 
 SAMPLE_LRC = (
     "[00:00.00]Hello world\n"
@@ -42,11 +38,36 @@ SAMPLE_LRC = (
 )
 
 
-def _make_tool(**extra_config) -> DiffRhythmTool:
-    """Create a DiffRhythmTool with a mocked Gradio client (no network)."""
+def _find_diffrhythm_tool_name(tool_lib: ToolLibrary) -> str:
+    """Auto-discover the DiffRhythm tool key from ToolLibrary."""
+    first_candidate = ""
+    for name, spec in getattr(tool_lib, "tools", {}).items():
+        name_l = str(name).lower()
+        model_l = str(getattr(spec, "default_model", "")).lower()
+        task_l = str(getattr(spec, "task", "")).lower()
+        if "diffrhythm" in name_l or "diffrhythm" in model_l:
+            if task_l in ("song_gen", "song", "music", "music_gen", "song_generation"):
+                return name
+            if not first_candidate:
+                first_candidate = name
+    if first_candidate:
+        return first_candidate
+    raise RuntimeError("No DiffRhythm-like tool found in tool library.")
+
+# Load tool from ToolLibrary with mocked Gradio client.
+with patch("gradio_client.Client"):
+    _TOOL_LIB = ToolLibrary(CONFIG_PATH)
+    _TOOL_NAME = _find_diffrhythm_tool_name(_TOOL_LIB)
+    _TOOL_SPEC = _TOOL_LIB.get(_TOOL_NAME)
+
+
+def _make_tool():
+    """Get DiffRhythmTool from library with mocked Gradio client (no network)."""
     with patch("gradio_client.Client"):
-        tool = DiffRhythmTool(SPEC, space="ASLP-lab/DiffRhythm", **extra_config)
-    return tool
+        tool_lib = ToolLibrary(CONFIG_PATH)
+        tool_name = _find_diffrhythm_tool_name(tool_lib)
+        spec = tool_lib.get(tool_name)
+    return spec.runtime
 
 
 # ── test runners ───────────────────────────────────────────────────────────────
@@ -225,7 +246,7 @@ def test_nested_args_unwrapped():
     tool = _make_tool()
     fake_output = "/tmp/_diffrhythm_test_nested.mp3"
     Path(fake_output).touch()
-    nested = {"diffrhythm": {"lrc": SAMPLE_LRC, "text_prompt": "Classical"}}
+    nested = {_TOOL_SPEC.name: {"lrc": SAMPLE_LRC, "text_prompt": "Classical"}}
     try:
         with patch.object(tool, "_predict", return_value=fake_output), \
              patch("tool.diffrhythm.handle_file", return_value={"path": "sample.wav"}):
@@ -238,14 +259,22 @@ def test_nested_args_unwrapped():
 # ── live test (exactly ONE real API call) ──────────────────────────────────────
 
 def test_live_infer_music():
-    """Single live call to /infer_music — verifies endpoint availability."""
-    from gradio_client import Client
+    """Single live call with endpoint discovered from ToolLibrary runtime metadata."""
+    from gradio_client import Client, handle_file
 
-    client = Client("ASLP-lab/DiffRhythm")
+    endpoint = str(getattr(_TOOL_SPEC.runtime, "space", "") or _TOOL_SPEC.default_model or "").strip()
+    tool_name = _TOOL_SPEC.name
+
+    if not endpoint:
+        raise RuntimeError(f"Tool '{tool_name}' has neither default_model nor space")
+
+    client = Client(endpoint)
+    client.view_api()
     result = client.predict(
         lrc=SAMPLE_LRC,
         ref_audio_path=None,
         text_prompt="Pop Emotional Piano",
+        current_prompt_type="text",
         seed=0,
         randomize_seed=True,
         steps=32,
@@ -257,7 +286,7 @@ def test_live_infer_music():
         api_name="/infer_music",
     )
     assert result, "API returned empty result"
-    print(f"\n[live] /infer_music returned: {result}")
+    print(f"\n[live] tool={tool_name} endpoint={endpoint} returned: {result}")
 
 
 # ── main ───────────────────────────────────────────────────────────────────────

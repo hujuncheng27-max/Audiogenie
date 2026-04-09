@@ -57,7 +57,7 @@ tools:
     provider: "gradio"
     task: "sfx"
     default_model: "hkchengrex/MMAudio"
-    space: "hkchengrex/MMAudio"
+    space: "xscdvfaaqqq/MMAudio"
     hf_token: ""
     inputs:
       - prompt
@@ -80,13 +80,11 @@ tools:
     provider: "gradio"
     task: "song_gen"
     default_model: "ASLP-lab/DiffRhythm"
-    space: "ASLP-lab/DiffRhythm"
+    space: "xscdvfaaqqq/DiffRhythm"
     hf_token: ""
     inputs:
-      - lrc_path
       - lrc
       - ref_audio_path
-      - ref_prompt
       - text_prompt
       - seed
       - randomize_seed
@@ -95,7 +93,6 @@ tools:
       - file_type
       - odeint_method
       - preference_infer
-      - seconds
       - Music_Duration
     notes: "DiffRhythm online song generation via Gradio API."
     parameters:
