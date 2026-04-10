@@ -1,11 +1,14 @@
 import os, json, mimetypes
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Callable
 from pathlib import Path
 import requests, base64
+import time
 
 from utils.media_uploader import UploadedMedia, build_media_uploader
+from utils.runtime_logger import get_runtime_logger
 
 _MAX_INLINE_BYTES = int(os.environ.get("GEMINI_INLINE_LIMIT", str(15 * 1024 * 1024)))
+_LOG = get_runtime_logger()
 
 
 def _as_bool(value: Any, default: bool = False) -> bool:
@@ -19,6 +22,20 @@ def _as_bool(value: Any, default: bool = False) -> bool:
     if s in ("0", "false", "no", "off", ""):
         return False
     return bool(value)
+
+
+def _as_int(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except Exception:
+        return int(default)
+
+
+def _as_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return float(default)
 
 
 def _normalize_media_upload_types(value: Any) -> set[str]:
@@ -84,6 +101,11 @@ class LLM:
         self.media_upload_method = str(media_upload_method_value or "").strip().lower()
         self.media_upload_enabled = _as_bool(media_upload_enabled_value, default=False)
         self.media_upload_types = _normalize_media_upload_types(media_upload_types_value)
+        self.request_max_attempts = max(1, _as_int(common_config.get("request_max_attempts", 1), 1))
+        self.request_retry_delay_seconds = max(
+            0.0,
+            _as_float(common_config.get("request_retry_delay_seconds", 1.0), 1.0),
+        )
         self.media_upload_cleanup = _as_bool(
             media_cfg.get("cleanup", common_config.get("hf_cache_cleanup", False)),
             default=False,
@@ -211,6 +233,31 @@ class LLM:
             return
         uploader.cleanup(uploaded_media)
 
+    def _run_request_with_retry(self, name: str, fn: Callable[[], str]) -> str:
+        last_error: Optional[Exception] = None
+        for attempt in range(1, self.request_max_attempts + 1):
+            try:
+                return fn()
+            except Exception as e:
+                last_error = e
+                if attempt >= self.request_max_attempts:
+                    break
+                delay = self.request_retry_delay_seconds * (2 ** (attempt - 1))
+                _LOG.warning(
+                    "[LLM-RETRY] name=%s attempt=%d/%d error=%s next_delay=%.2fs",
+                    name,
+                    attempt,
+                    self.request_max_attempts,
+                    e,
+                    delay,
+                )
+                if delay > 0:
+                    time.sleep(delay)
+
+        raise RuntimeError(
+            f"LLM request failed after {self.request_max_attempts} attempts: {name}; last_error={last_error}"
+        ) from last_error
+
 class GeminiLLM(LLM):
     def __init__(self, model: str = "gemini-2.5-flash", api_key: Optional[str] = None, **parameters):
         super().__init__(**parameters)
@@ -331,9 +378,12 @@ class GeminiLLM(LLM):
         parts.append(self._types.Part(text=f"[USER]\n{user}"))
 
         content = self._types.Content(parts=parts)
-        resp = self._client.models.generate_content(model=self.model, contents=content)
-        text = getattr(resp, "text", None) or getattr(resp, "output_text", None)
-        return text or ""
+        def _request() -> str:
+            resp = self._client.models.generate_content(model=self.model, contents=content)
+            text = getattr(resp, "text", None) or getattr(resp, "output_text", None)
+            return text or ""
+
+        return self._run_request_with_retry("gemini.generate_content", _request)
 
 
 class OpenaiLLM(LLM):
@@ -404,8 +454,11 @@ class OpenaiLLM(LLM):
         messages = [{"role": "system", "content": system}, {"role": "user", "content": content}]
 
         try:
-            resp = self._client.chat.completions.create(model=self.model, messages=messages, stop=stop)
-            return resp.choices[0].message.content or ""
+            def _request() -> str:
+                resp = self._client.chat.completions.create(model=self.model, messages=messages, stop=stop)
+                return resp.choices[0].message.content or ""
+
+            return self._run_request_with_retry("openai.chat.completions.create", _request)
         finally:
             self._cleanup_uploaded_media(uploaded_media)
 
@@ -567,8 +620,12 @@ class NvidiaLLM(LLM):
             "reasoning": "false"
         }
 
-        resp = requests.post(self.invoke_url, headers=headers, json=payload)
-        return resp.json()["choices"][0]["message"]["content"]
+        def _request() -> str:
+            resp = requests.post(self.invoke_url, headers=headers, json=payload)
+            resp.raise_for_status()
+            return resp.json()["choices"][0]["message"]["content"]
+
+        return self._run_request_with_retry("nvidia.chat.completions", _request)
     
 
 class HuggingfaceLLM(LLM):
@@ -684,25 +741,25 @@ class GradioLLM(LLM):
             
         prompt_text = user + ("\n" + "\n".join(text) if text else "")
 
-        result = self._client.predict(
-            text=prompt_text,
-            audio=audio_input,
-            image=image_input,
-            video=video_input,
-            history=[],
-            system_prompt=system,
-            temperature=self.temperature,
-            top_p=self.top_p,
-            top_k=self.top_k,
-            api_name="/chat_predict",
-        )
-        # result[0] is the text response
-        chat_history = result[-1]
-        if chat_history and isinstance(chat_history, list):
-            last_message = chat_history[-1]
-            if last_message.get("role") == "assistant":
-                # 3. 提取其中的 'content' 字段
-                assistant_response = last_message.get("content")
-                return assistant_response
-        else:
+        def _request() -> str:
+            result = self._client.predict(
+                text=prompt_text,
+                audio=audio_input,
+                image=image_input,
+                video=video_input,
+                history=[],
+                system_prompt=system,
+                temperature=self.temperature,
+                top_p=self.top_p,
+                top_k=self.top_k,
+                api_name="/chat_predict",
+            )
+            chat_history = result[-1]
+            if chat_history and isinstance(chat_history, list):
+                last_message = chat_history[-1]
+                if last_message.get("role") == "assistant":
+                    assistant_response = last_message.get("content")
+                    return assistant_response
             raise RuntimeError(f"Unexpected response format from Gradio LLM: {result}")
+
+        return self._run_request_with_retry("gradio.chat_predict", _request)

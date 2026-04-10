@@ -5,6 +5,8 @@ version: "1.0"
 # 基础共享配置（全项目共用）
 basic:
   hf_token: ""
+  request_max_attempts: 3
+  request_retry_delay_seconds: 2.0
   media_upload:
     method: "huggingface"
     enabled: true

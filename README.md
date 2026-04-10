@@ -2,7 +2,25 @@
 
 ## 快速开始
 
-### 1. 配置 LLM
+### 1. 基础配置（`basic`）
+
+`config.yaml` 的 `basic:` 字段存放全项目共用的基础参数：
+
+| 字段 | 默认值 | 说明 |
+|---|---|---|
+| `hf_token` | `""` | HuggingFace Token，访问私有 Space / 上传数据集时必填 |
+| `request_max_attempts` | `3` | LLM 请求失败后的最大重试次数（含首次请求） |
+| `request_retry_delay_seconds` | `2.0` | 首次重试前的等待秒数；后续重试按指数退避递增（`delay × 2^(n-1)`） |
+| `media_upload.method` | `"huggingface"` | 媒体文件上传方式，目前支持 `huggingface` / `dashscope` |
+| `media_upload.enabled` | `true` | 是否启用媒体上传（关闭后本地路径直接传给模型） |
+| `media_upload.types` | `["videos"]` | 需要上传的媒体类型列表 |
+
+#### 自定义媒体上传
+需要继承 `BaseMediaUploader` 类并实现 `upload(file_path: str) -> str` 方法，返回上传后的 URL 地址。用ai即可。
+
+---
+
+### 2. 配置 LLM
 
 将模板复制到项目根目录并编辑：
 
@@ -64,7 +82,13 @@ llms:
 
 ---
 
-### 2. 运行
+### 配置tool
+> [!WARNING] 
+> 前tool的配置已完成，最好不需要改动。
+
+---
+
+### 3. 运行
 
 ```bash
 python run.py \
@@ -95,33 +119,3 @@ python run.py \
 | `--outdir` | `outputs/` | 生成文件的保存目录 |
 | `--max_depth` | `3` | 多智能体树的最大递归深度 |
 | `--max_siblings` | `1` | 每个节点的最大并行分支数 |
-
----
-
-## TODO
-
-- [ ] 安装说明（依赖、CUDA 版本、CosyVoice 配置）
-- [ ] 系统架构介绍（agents、router、多智能体树）
-- [ ] 输出格式说明
-- [ ] 新增 Agent 类型的方法
-- [ ] 评测 / 基准测试说明
-
----
-
-## 附加说明
-
-安装cosyvoice时出现setuptool问题 [here](https://github.com/FunAudioLLM/CosyVoice/issues/1844)
-
-修改cuda版本：
-
-CUDA 11.8
-```
---extra-index-url https://download.pytorch.org/whl/cu118
---extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-11/pypi/simple
-```
-
-CUDA 12.1
-```
---extra-index-url https://download.pytorch.org/whl/cu121
---extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple
-```
