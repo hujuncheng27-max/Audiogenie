@@ -14,21 +14,35 @@ def load_llm(name: str):
     if not llm_config:
         raise ValueError(f"LLM '{name}' not found in config.yaml")
 
+    basic_cfg = dict(config.get("basic") or config.get("basic_config") or {})
+    llm_params = dict(basic_cfg)
+    llm_params.update(llm_config.get("parameters") or {})
+
     provider = llm_config["provider"]
     api_key = llm_config.get("api_key")
     model = llm_config.get("default_model")
     log_step(f"Creating provider={provider}, model={model}")
 
     if provider == "openai":
-        llm = OpenaiLLM(model=model, api_key=api_key, base_url=llm_config.get("api_url"))
+        llm = OpenaiLLM(
+            model=model,
+            api_key=api_key,
+            base_url=llm_config.get("api_url"),
+            **llm_params,
+        )
     elif provider == "google":
-        llm = GeminiLLM(model=model, api_key=api_key)
+        llm = GeminiLLM(model=model, api_key=api_key, **llm_params)
     elif provider == "nvidia":
-        llm = NvidiaLLM(model=model, api_key=api_key, base_url=llm_config.get("api_url"))
+        llm = NvidiaLLM(
+            model=model,
+            api_key=api_key,
+            base_url=llm_config.get("api_url"),
+            **llm_params,
+        )
     elif provider == "huggingface":
-        llm = HuggingfaceLLM(model=model, **llm_config.get("parameters", {}))
+        llm = HuggingfaceLLM(model=model, **llm_params)
     elif provider == "gradio":
-        llm = GradioLLM(model=model, **llm_config.get("parameters", {}))
+        llm = GradioLLM(model=model, **llm_params)
     else:
         raise ValueError(f"Unsupported provider: {provider}")
 

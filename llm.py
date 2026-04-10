@@ -2,11 +2,50 @@ import os, json, mimetypes
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 import requests, base64
-import time
-import uuid
-from urllib.parse import quote
+
+from utils.media_uploader import UploadedMedia, build_media_uploader
 
 _MAX_INLINE_BYTES = int(os.environ.get("GEMINI_INLINE_LIMIT", str(15 * 1024 * 1024)))
+
+
+def _as_bool(value: Any, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    s = str(value).strip().lower()
+    if s in ("1", "true", "yes", "on"):
+        return True
+    if s in ("0", "false", "no", "off", ""):
+        return False
+    return bool(value)
+
+
+def _normalize_media_upload_types(value: Any) -> set[str]:
+    aliases = {
+        "video": "videos",
+        "videos": "videos",
+        "image": "images",
+        "images": "images",
+        "audio": "audios",
+        "audios": "audios",
+    }
+
+    if value is None:
+        raw_items = ["videos"]
+    elif isinstance(value, str):
+        raw_items = [x.strip() for x in value.split(",")]
+    elif isinstance(value, (list, tuple, set)):
+        raw_items = [str(x).strip() for x in value]
+    else:
+        raw_items = [str(value).strip()]
+
+    media_types: set[str] = set()
+    for item in raw_items:
+        key = aliases.get(str(item).lower())
+        if key:
+            media_types.add(key)
+    return media_types or {"videos"}
 
 def _mime(path: str) -> str:
     mt, _ = mimetypes.guess_type(path)
@@ -17,11 +56,164 @@ def _read_bytes(path: str) -> bytes:
         return f.read()
 
 class LLM:
+    def __init__(self, **common_config):
+        # Shared basic settings for all providers in this project.
+        self.hf_token = str(common_config.get("hf_token") or os.environ.get("HF_TOKEN") or "").strip()
+
+        media_cfg = dict(common_config.get("media_upload") or {})
+        media_upload_method_override = common_config.get("media_upload_method", None)
+        media_upload_enabled_override = common_config.get("media_upload_enabled", None)
+        media_upload_types_override = common_config.get("media_upload_types", None)
+
+        media_upload_method_value = (
+            media_upload_method_override
+            if media_upload_method_override is not None
+            else media_cfg.get("method")
+        )
+        media_upload_enabled_value = (
+            media_upload_enabled_override
+            if media_upload_enabled_override is not None
+            else media_cfg.get("enabled", False)
+        )
+        media_upload_types_value = (
+            media_upload_types_override
+            if media_upload_types_override is not None
+            else media_cfg.get("types", ["videos"])
+        )
+
+        self.media_upload_method = str(media_upload_method_value or "").strip().lower()
+        self.media_upload_enabled = _as_bool(media_upload_enabled_value, default=False)
+        self.media_upload_types = _normalize_media_upload_types(media_upload_types_value)
+        self.media_upload_cleanup = _as_bool(
+            media_cfg.get("cleanup", common_config.get("hf_cache_cleanup", False)),
+            default=False,
+        )
+
+        hf_cfg = dict(media_cfg.get("huggingface") or {})
+        self.hf_cache_repo_id = str(
+            hf_cfg.get("repo_id") or common_config.get("hf_cache_repo_id") or os.environ.get("HF_CACHE_REPO_ID") or ""
+        ).strip()
+        self.hf_cache_repo_type = str(
+            hf_cfg.get("repo_type")
+            or common_config.get("hf_cache_repo_type")
+            or os.environ.get("HF_CACHE_REPO_TYPE")
+            or "dataset"
+        ).strip() or "dataset"
+        self.hf_cache_token = str(
+            hf_cfg.get("token") or common_config.get("hf_cache_token") or self.hf_token or os.environ.get("HF_TOKEN") or ""
+        ).strip()
+        self.hf_cache_prefix = str(
+            hf_cfg.get("prefix") or common_config.get("hf_cache_prefix") or os.environ.get("HF_CACHE_PREFIX") or "videos"
+        ).strip("/")
+        self.hf_cache_public_base_url = str(
+            hf_cfg.get("public_base_url")
+            or common_config.get("hf_cache_public_base_url")
+            or os.environ.get("HF_CACHE_PUBLIC_BASE_URL")
+            or "https://huggingface.co"
+        ).strip()
+
+        dash_cfg = dict(media_cfg.get("dashscope") or {})
+        self.dashscope_api_key = str(
+            dash_cfg.get("api_key")
+            or common_config.get("dashscope_api_key")
+            or os.environ.get("DASHSCOPE_API_KEY")
+            or ""
+        ).strip()
+        self.dashscope_base_url = str(
+            dash_cfg.get("base_url")
+            or common_config.get("dashscope_base_url")
+            or "https://dashscope.aliyuncs.com/api/v1"
+        ).strip().rstrip("/")
+        self.dashscope_purpose = str(
+            dash_cfg.get("purpose")
+            or common_config.get("dashscope_purpose")
+            or "file-extract"
+        ).strip() or "file-extract"
+        self.dashscope_description = str(
+            dash_cfg.get("description") or common_config.get("dashscope_description") or ""
+        ).strip()
+
+        # Backward compatibility: if legacy HF cache fields are configured, auto-enable HF uploader.
+        if not self.media_upload_method and self.hf_cache_repo_id:
+            self.media_upload_method = "huggingface"
+
+        self._media_uploader = None
+
     def chat(self, system: str, user: str, stop: Optional[List[str]] = None, **kwargs) -> str:
         raise NotImplementedError
 
+    def _media_upload_enabled(self) -> bool:
+        if not self.media_upload_enabled:
+            return False
+        return self.media_upload_method not in ("", "none", "disabled", "off")
+
+    def _media_type_upload_enabled(self, media_kind: str) -> bool:
+        aliases = {
+            "video": "videos",
+            "videos": "videos",
+            "image": "images",
+            "images": "images",
+            "audio": "audios",
+            "audios": "audios",
+        }
+        kind = aliases.get(str(media_kind or "").strip().lower(), "")
+        if not kind:
+            return False
+        return kind in self.media_upload_types
+
+    def _hf_enabled(self) -> bool:
+        return self.media_upload_method in ("hf", "huggingface") and bool(self.hf_cache_repo_id)
+
+    def _build_media_uploader(self):
+        dashscope_api_key = self.dashscope_api_key or str(getattr(self, "api_key", "") or "").strip()
+        return build_media_uploader(
+            method=self.media_upload_method,
+            cleanup=self.media_upload_cleanup,
+            hf_repo_id=self.hf_cache_repo_id,
+            hf_repo_type=self.hf_cache_repo_type,
+            hf_token=self.hf_cache_token,
+            hf_prefix=self.hf_cache_prefix,
+            hf_public_base_url=self.hf_cache_public_base_url,
+            dashscope_api_key=dashscope_api_key,
+            dashscope_base_url=self.dashscope_base_url,
+            dashscope_purpose=self.dashscope_purpose,
+            dashscope_description=self.dashscope_description,
+        )
+
+    def _get_media_uploader(self):
+        if not self._media_upload_enabled():
+            return None
+        if self._media_uploader is None:
+            self._media_uploader = self._build_media_uploader()
+        return self._media_uploader
+
+    def _upload_local_media_file(
+        self,
+        local_path: str,
+        uploaded_media: Optional[List[UploadedMedia]] = None,
+        media_kind: str = "videos",
+    ) -> Optional[str]:
+        if not self._media_upload_enabled() or not self._media_type_upload_enabled(media_kind):
+            return None
+        uploader = self._get_media_uploader()
+        if uploader is None:
+            return None
+        result = uploader.upload_file(local_path)
+        if uploaded_media is not None:
+            uploaded_media.append(result)
+        return result.url
+
+    def _cleanup_uploaded_media(self, uploaded_media: List[UploadedMedia]) -> None:
+        if not uploaded_media:
+            return
+        uploader = self._get_media_uploader()
+        if uploader is None:
+            return
+        uploader.cleanup(uploaded_media)
+
 class GeminiLLM(LLM):
-    def __init__(self, model: str = "gemini-2.5-flash", api_key: Optional[str] = None):
+    def __init__(self, model: str = "gemini-2.5-flash", api_key: Optional[str] = None, **parameters):
+        super().__init__(**parameters)
         self.model = model
         self._client = None
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
@@ -146,91 +338,15 @@ class GeminiLLM(LLM):
 
 class OpenaiLLM(LLM):
     def __init__(self, model: str = "gpt-4o", api_key: Optional[str] = None, base_url: Optional[str] = None, **parameters):
+        super().__init__(**parameters)
         self.model = model
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         self.base_url = base_url
-        self.hf_cache_repo_id = str(parameters.get("hf_cache_repo_id") or os.environ.get("HF_CACHE_REPO_ID") or "").strip()
-        self.hf_cache_repo_type = str(parameters.get("hf_cache_repo_type") or os.environ.get("HF_CACHE_REPO_TYPE") or "dataset").strip() or "dataset"
-        self.hf_cache_token = str(parameters.get("hf_cache_token") or os.environ.get("HF_TOKEN") or "").strip()
-        self.hf_cache_prefix = str(parameters.get("hf_cache_prefix") or os.environ.get("HF_CACHE_PREFIX") or "videos").strip("/")
-        self.hf_cache_cleanup = bool(parameters.get("hf_cache_cleanup", False))
-        self._hf_api = None
 
         if not self.api_key:
             raise RuntimeError("OPENAI_API_KEY not set.")
         self._client = None
         self._init_client()
-
-    def _hf_enabled(self) -> bool:
-        return bool(self.hf_cache_repo_id)
-
-    def _get_hf_api(self):
-        if not self._hf_enabled():
-            return None
-        if self._hf_api is None:
-            try:
-                from huggingface_hub import HfApi
-            except Exception as e:
-                raise RuntimeError(
-                    "huggingface_hub not installed. Please install it with: pip install huggingface_hub"
-                ) from e
-            self._hf_api = HfApi()
-        return self._hf_api
-
-    def _to_hf_resolve_url(self, path_in_repo: str) -> str:
-        safe_path = quote(path_in_repo.strip("/"), safe="/")
-        if self.hf_cache_repo_type == "dataset":
-            return f"https://huggingface.co/datasets/{self.hf_cache_repo_id}/resolve/main/{safe_path}"
-        return f"https://huggingface.co/{self.hf_cache_repo_id}/resolve/main/{safe_path}"
-
-    def _upload_file_to_hf_cache(self, local_path: str) -> Optional[Dict[str, str]]:
-        if not self._hf_enabled():
-            return None
-        if not self.hf_cache_token:
-            raise RuntimeError(
-                "HF cache is enabled but no token was provided. "
-                "Please set `hf_cache_token` in config or environment variable `HF_TOKEN`."
-            )
-
-        p = str(local_path)
-        name = os.path.basename(p)
-        stamp = int(time.time() * 1000)
-        rand = uuid.uuid4().hex[:8]
-        remote_dir = self.hf_cache_prefix or "videos"
-        remote_path = f"{remote_dir}/{stamp}_{rand}_{name}"
-
-        api = self._get_hf_api()
-        api.upload_file(
-            path_or_fileobj=p,
-            path_in_repo=remote_path,
-            repo_id=self.hf_cache_repo_id,
-            repo_type=self.hf_cache_repo_type,
-            token=self.hf_cache_token,
-        )
-
-        return {
-            "url": self._to_hf_resolve_url(remote_path),
-            "path_in_repo": remote_path,
-        }
-
-    def _cleanup_hf_cached_files(self, uploaded_paths: List[str]) -> None:
-        if not uploaded_paths or not self.hf_cache_cleanup or not self._hf_enabled() or not self.hf_cache_token:
-            return
-        try:
-            api = self._get_hf_api()
-            for path_in_repo in uploaded_paths:
-                try:
-                    api.delete_file(
-                        path_in_repo=path_in_repo,
-                        repo_id=self.hf_cache_repo_id,
-                        repo_type=self.hf_cache_repo_type,
-                        token=self.hf_cache_token,
-                    )
-                except Exception:
-                    # cleanup best-effort only
-                    pass
-        except Exception:
-            pass
 
     def _init_client(self):
         try:
@@ -245,7 +361,7 @@ class OpenaiLLM(LLM):
 
         media = media or {}
         content = []
-        uploaded_paths: List[str] = []
+        uploaded_media: List[UploadedMedia] = []
         
         content.append({"type": "text", "text": user})
 
@@ -253,13 +369,37 @@ class OpenaiLLM(LLM):
             content.append({"type": "text", "text": str(text)})
 
         for img in self._to_list(media.get("images")):
-            content.append({"type": "image_url", "image_url": {"url": self._to_data_url(img, fallback_mime="image/jpeg", uploaded_paths=uploaded_paths)}})
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": self._to_data_url(
+                            img,
+                            fallback_mime="image/jpeg",
+                            uploaded_media=uploaded_media,
+                            media_kind="images",
+                        )
+                    },
+                }
+            )
 
         for vid in self._to_list(media.get("videos")):
-            content.append({"type": "video_url", "video_url": {"url": self._to_data_url(vid, fallback_mime="video/mp4", uploaded_paths=uploaded_paths)}})
+            content.append(
+                {
+                    "type": "video_url",
+                    "video_url": {
+                        "url": self._to_data_url(
+                            vid,
+                            fallback_mime="video/mp4",
+                            uploaded_media=uploaded_media,
+                            media_kind="videos",
+                        )
+                    },
+                }
+            )
 
         for aud in self._to_list(media.get("audio")):
-            content.append({"type": "input_audio", "input_audio": self._to_input_audio(aud, uploaded_paths=uploaded_paths)})
+            content.append({"type": "input_audio", "input_audio": self._to_input_audio(aud, uploaded_media=uploaded_media)})
 
         messages = [{"role": "system", "content": system}, {"role": "user", "content": content}]
 
@@ -267,14 +407,20 @@ class OpenaiLLM(LLM):
             resp = self._client.chat.completions.create(model=self.model, messages=messages, stop=stop)
             return resp.choices[0].message.content or ""
         finally:
-            self._cleanup_hf_cached_files(uploaded_paths)
+            self._cleanup_uploaded_media(uploaded_media)
 
     def _to_list(self, x):
         if not x:
             return []
         return x if isinstance(x, (list, tuple)) else [x]
 
-    def _to_data_url(self, item: Any, fallback_mime: str, uploaded_paths: Optional[List[str]] = None) -> str:
+    def _to_data_url(
+        self,
+        item: Any,
+        fallback_mime: str,
+        uploaded_media: Optional[List[UploadedMedia]] = None,
+        media_kind: str = "videos",
+    ) -> str:
         # Support {"base64": "...", "mime_type": "..."} / {"path": "..."} / {"url": "..."}
         if isinstance(item, dict):
             if item.get("url"):
@@ -292,13 +438,9 @@ class OpenaiLLM(LLM):
         if s.startswith("data:") or s.startswith("http://") or s.startswith("https://"):
             return s
         if os.path.exists(s):
-            if self._hf_enabled():
-                uploaded = self._upload_file_to_hf_cache(s)
-                if uploaded and uploaded.get("url"):
-                    if uploaded_paths is not None and uploaded.get("path_in_repo"):
-                        uploaded_paths.append(str(uploaded["path_in_repo"]))
-                    return str(uploaded["url"])
-                raise RuntimeError(f"HF upload succeeded without URL for file: {s}")
+            uploaded_url = self._upload_local_media_file(s, uploaded_media, media_kind=media_kind)
+            if uploaded_url:
+                return uploaded_url
             return f"data:{_mime(s) or fallback_mime};base64,{self._encode_file(s)}"
 
         # If not a file/URL, treat it as a raw base64 payload.
@@ -320,7 +462,7 @@ class OpenaiLLM(LLM):
             return ext
         return default_fmt
 
-    def _to_input_audio(self, item: Any, uploaded_paths: Optional[List[str]] = None) -> Dict[str, str]:
+    def _to_input_audio(self, item: Any, uploaded_media: Optional[List[UploadedMedia]] = None) -> Dict[str, str]:
         # OpenAI-compatible multimodal input uses:
         # {"type": "input_audio", "input_audio": {"data": "...", "format": "wav"}}
         if isinstance(item, dict):
@@ -344,16 +486,12 @@ class OpenaiLLM(LLM):
             # Keep data URL as-is for compatibility with endpoints that accept URLs in `data`.
             return {"data": s, "format": self._audio_format(s)}
         if os.path.exists(s):
-            if self._hf_enabled():
-                uploaded = self._upload_file_to_hf_cache(s)
-                if uploaded and uploaded.get("url"):
-                    if uploaded_paths is not None and uploaded.get("path_in_repo"):
-                        uploaded_paths.append(str(uploaded["path_in_repo"]))
-                    return {
-                        "data": str(uploaded["url"]),
-                        "format": self._audio_format(s),
-                    }
-                raise RuntimeError(f"HF upload succeeded without URL for audio: {s}")
+            uploaded_url = self._upload_local_media_file(s, uploaded_media, media_kind="audios")
+            if uploaded_url:
+                return {
+                    "data": str(uploaded_url),
+                    "format": self._audio_format(s),
+                }
             return {
                 "data": self._encode_file(s),
                 "format": self._audio_format(s),
@@ -370,7 +508,14 @@ class OpenaiLLM(LLM):
             return base64.b64encode(f.read()).decode("utf-8")
         
 class NvidiaLLM(LLM):
-    def __init__(self, model: str = "microsoft/phi-4-multimodal-instruct", api_key: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(
+        self,
+        model: str = "microsoft/phi-4-multimodal-instruct",
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        **parameters,
+    ):
+        super().__init__(**parameters)
         self.model = model
         self.api_key = api_key or os.environ.get("NVIDIA_API_KEY")
         self.invoke_url = base_url or "https://integrate.api.nvidia.com/v1/chat/completions"
@@ -428,6 +573,7 @@ class NvidiaLLM(LLM):
 
 class HuggingfaceLLM(LLM):
     def __init__(self, model: str = "Qwen/Qwen3-VL-4B-Instruct", **parameters):
+        super().__init__(**parameters)
         try:
             from transformers import Qwen3VLForConditionalGeneration, AutoProcessor, BitsAndBytesConfig
             import torch
@@ -490,8 +636,9 @@ class HuggingfaceLLM(LLM):
 class GradioLLM(LLM):
     def __init__(self, model: str = "Qwen/Qwen3.5-Omni-Offline-Demo",
                  **gradio_kwargs):
+        super().__init__(**gradio_kwargs)
         self.space = model
-        self.hf_token = gradio_kwargs.get("hf_token") or os.environ.get("HF_TOKEN")
+        self.hf_token = gradio_kwargs.get("hf_token") or self.hf_token or os.environ.get("HF_TOKEN")
         self.temperature = gradio_kwargs.get("temperature", 0.7)
         self.top_p = gradio_kwargs.get("top_p", 0.8)
         self.top_k = gradio_kwargs.get("top_k", 20)

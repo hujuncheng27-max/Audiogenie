@@ -2,6 +2,25 @@
 project_name: "MultiLLMProject"
 version: "1.0"
 
+# 基础共享配置（全项目共用）
+basic:
+  hf_token: ""
+  media_upload:
+    method: "huggingface"
+    enabled: true
+    types:
+      - videos
+    huggingface:
+      repo_id: ""
+      repo_type: "dataset"
+      prefix: "videos"
+      public_base_url: "https://hf-mirror.com"
+    dashscope:
+      api_key: ""
+      base_url: "https://dashscope.aliyuncs.com/api/v1"
+      purpose: "file-extract"
+      description: ""
+
 # LLM 核心配置区域
 llms:
   # 自定义名称 1：用于主要对话的 OpenAI
@@ -12,13 +31,7 @@ llms:
     default_model: "gpt-4-turbo"
     parameters:
       temperature: 0.7
-      max_tokens: 2048
-      # Optional: upload local media to HF cache dataset and send URL instead of base64.
-      hf_cache_repo_id: ""
-      hf_cache_repo_type: "dataset"
-      hf_cache_token: ""
-      hf_cache_prefix: "videos"
-      hf_cache_cleanup: false
+      max_tokens: 4096
 
   # 自定义名称 2：用于长文本处理的 Gemini
   google_gemini:
@@ -47,7 +60,6 @@ tools:
     default_model: "FunAudioLLM/Fun-CosyVoice3-0.5B"
     space: "FunAudioLLM/Fun-CosyVoice3-0.5B"
     api_name: "/generate_audio"
-    hf_token: ""
     inputs:
       - target_text
       - prompt_transcript
@@ -64,7 +76,6 @@ tools:
     task: "sfx"
     default_model: "hkchengrex/MMAudio"
     space: "xscdvfaaqqq/MMAudio"
-    hf_token: ""
     inputs:
       - prompt
       - negative_prompt
@@ -83,7 +94,6 @@ tools:
     default_model: "xscdvfaaqqq/InspireMusic"
     space: "xscdvfaaqqq/InspireMusic"
     api_name: "/demo_inspiremusic_t2m"
-    hf_token: ""
     inputs:
       - text
       - model_name
@@ -102,7 +112,6 @@ tools:
     task: "song_gen"
     default_model: "ASLP-lab/DiffRhythm"
     space: "xscdvfaaqqq/DiffRhythm"
-    hf_token: ""
     inputs:
       - lrc
       - ref_audio_path
