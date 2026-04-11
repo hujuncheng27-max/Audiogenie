@@ -2,3 +2,4 @@ moviepy
 pydub
 pyyaml
 gradio_client
+huggingface_hub

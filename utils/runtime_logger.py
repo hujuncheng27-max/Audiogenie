@@ -10,6 +10,7 @@ _RESET = "\033[0m"
 _STEP_COLOR = "\033[36m"
 _LLM_COLOR = "\033[33m"
 _TOOL_COLOR = "\033[32m"
+_UPLOAD_COLOR = "\033[34m"
 
 
 def _use_log_truncation() -> bool:
@@ -47,6 +48,11 @@ def _logger() -> logging.Logger:
     logger.addHandler(handler)
     logger.propagate = False
     return logger
+
+
+def get_runtime_logger() -> logging.Logger:
+    """Return the shared AudioGenie runtime logger instance."""
+    return _logger()
 
 
 def log_step(message: str) -> None:
@@ -224,3 +230,76 @@ def instrument_tool_run(tool_runtime: Any) -> Any:
     label = f"{tool_runtime.__class__.__name__}({tool_name})"
     tool_runtime.run = decorate_tool_run(run_fn, label)
     return tool_runtime
+
+
+def _upload_result_summary(result: Any) -> str:
+    if result is None:
+        return "none"
+
+    if hasattr(result, "provider") and hasattr(result, "url"):
+        provider = getattr(result, "provider", "")
+        url = getattr(result, "url", "")
+        remote_id = getattr(result, "remote_id", "")
+        remote_path = getattr(result, "remote_path", "")
+        return _shorten(
+            f"provider={provider} url={url} remote_id={remote_id} remote_path={remote_path}",
+            260,
+        )
+
+    if isinstance(result, list):
+        return f"list[{len(result)}]"
+
+    return _shorten(result, 260)
+
+
+def decorate_upload_action(action: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Decorator for media upload methods with dedicated UPLOAD logs."""
+
+    def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+        if getattr(fn, "_logged", False):
+            return fn
+
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            uploader = args[0] if args else None
+            label = uploader.__class__.__name__ if uploader is not None else "Uploader"
+            call_args = args[1:] if len(args) >= 1 else args
+
+            _logger().info(
+                "%s request uploader=%s action=%s args=%s kwargs=%s",
+                _colored_prefix("UPLOAD", _UPLOAD_COLOR),
+                label,
+                action,
+                _shorten(call_args, 220),
+                _shorten(_sanitize_mapping(kwargs), 220),
+            )
+
+            start = time.perf_counter()
+            try:
+                result = fn(*args, **kwargs)
+                elapsed = time.perf_counter() - start
+                _logger().info(
+                    "%s response uploader=%s action=%s elapsed=%.2fs result=%s",
+                    _colored_prefix("UPLOAD", _UPLOAD_COLOR),
+                    label,
+                    action,
+                    elapsed,
+                    _upload_result_summary(result),
+                )
+                return result
+            except Exception as exc:
+                elapsed = time.perf_counter() - start
+                _logger().exception(
+                    "%s error uploader=%s action=%s elapsed=%.2fs error=%s",
+                    _colored_prefix("UPLOAD", _UPLOAD_COLOR),
+                    label,
+                    action,
+                    elapsed,
+                    exc,
+                )
+                raise
+
+        setattr(wrapper, "_logged", True)
+        return wrapper
+
+    return decorator
