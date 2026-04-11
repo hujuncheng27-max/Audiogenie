@@ -93,6 +93,8 @@ export interface GenerationResponse {
   id: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   artifact?: Artifact;
+  stage?: 'uploading' | 'planning' | 'assigning' | 'synthesizing' | 'mixing' | 'done';
+  stageDetail?: string;
 }
 
 export interface ActiveGeneration {
@@ -101,6 +103,8 @@ export interface ActiveGeneration {
   payload: GenerationPayload;
   runtimeMode: RuntimeMode;
   statusMessage?: string;
+  stage?: GenerationResponse['stage'];
+  stageDetail?: string;
 }
 
 export interface AppNotice {
