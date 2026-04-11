@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import json, os, pathlib, re
 
 from llm import LLM
@@ -75,15 +75,19 @@ class GenerationTeam:
 
     def plan(self, multimodal_context: Dict[str, Any]) -> Plan:
         log_step("Stage-1 planning: building multimodal event plan")
-        video_path = (multimodal_context or {}).get("video")
+        ctx = multimodal_context or {}
+        video_path = ctx.get("video")
         video_duration = None
         if video_path:
             try:
                 # get seconds of the video
                 from utils.media import probe_video_seconds
-                video_duration = probe_video_seconds(video_path)  
+                video_duration = probe_video_seconds(video_path)
             except Exception as e:
                 print(f"Error extracting video duration: {e}")
+
+        output_class = (ctx.get("output_class") or "").strip()
+        target_duration = ctx.get("target_duration")
 
         system = "You are a multimodal audio planning expert."
         user = (
@@ -125,10 +129,23 @@ class GenerationTeam:
         if video_duration:
             user = user + (f"\n The total duration of given video is {video_duration}")
 
+        hint_lines = []
+        if output_class:
+            hint_lines.append(
+                f"- Preferred audio category: {output_class}. Bias the plan strongly toward this category; "
+                f"only include other categories if they are essential support."
+            )
+        if target_duration:
+            hint_lines.append(
+                f"- Target total duration: {target_duration} seconds. Keep every event inside [0, {target_duration}]."
+            )
+        if hint_lines:
+            user = user + "\n\nUser constraints (respect these):\n" + "\n".join(hint_lines)
+
         media = {
-            "texts":  _tolist((multimodal_context or {}).get("text")),
-            "images": _tolist((multimodal_context or {}).get("image")),
-            "videos": _tolist((multimodal_context or {}).get("video")),
+            "texts":  _tolist(ctx.get("text")),
+            "images": _tolist(ctx.get("image")),
+            "videos": _tolist(ctx.get("video")),
         }
 
         reply = self.llm.chat(system, user, media=media)
@@ -298,9 +315,26 @@ class SupervisorTeam:
         return self.eval_critic
 
 
+_shared_tool_lib: Optional[ToolLibrary] = None
+
+
+def get_shared_tool_lib() -> ToolLibrary:
+    """Return a process-wide singleton ToolLibrary.
+
+    Building a ToolLibrary eagerly handshakes with every Gradio Space in the
+    config, which takes several seconds and can hang if a Space is slow. The
+    backend spawns a fresh AudioGenieSystem per job, so without caching, each
+    request pays that cost again and one slow Space can time the whole job out.
+    """
+    global _shared_tool_lib
+    if _shared_tool_lib is None:
+        _shared_tool_lib = ToolLibrary()
+    return _shared_tool_lib
+
+
 class AudioGenieSystem:
     def __init__(self, llm: LLM, outdir: str = "outputs"):
-        self.tool_lib = ToolLibrary()
+        self.tool_lib = get_shared_tool_lib()
         self.eval_critic = AudioEvalCritic()
         self.generation = GenerationTeam(llm, self.tool_lib)
         self.supervisor = SupervisorTeam(llm)
