@@ -152,16 +152,29 @@ export default function App() {
     });
 
     return pollGenerationStatus(response.id, (update) => {
+      const stageMessages: Record<string, string> = {
+        uploading: 'Preparing source inputs...',
+        planning: 'Stage 1: Analyzing inputs and creating audio event plan...',
+        assigning: 'Stage 2: Routing events to domain experts (SFX, Speech, Music, Song)...',
+        synthesizing: 'Stage 3: Generating audio with Tree-of-Thought refinement...',
+        mixing: 'Compositing and mixing audio tracks...',
+        done: 'Generation complete.',
+      };
+      const stageMsg = update.stage ? stageMessages[update.stage] || update.stageDetail || '' : '';
+      const detailMsg = update.stageDetail || stageMsg;
+
       setActiveGeneration({
         id: update.id,
         status: update.status,
         payload,
         runtimeMode: 'live',
-        statusMessage: update.status === 'processing'
+        stage: update.stage,
+        stageDetail: update.stageDetail,
+        statusMessage: detailMsg || (update.status === 'processing'
           ? 'Live generation in progress.'
           : update.status === 'completed'
             ? 'Finalizing backend result.'
-            : 'Waiting for backend worker.',
+            : 'Waiting for backend worker.'),
       });
     });
   };
