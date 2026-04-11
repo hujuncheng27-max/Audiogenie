@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any, Dict, Optional
 
@@ -12,6 +13,8 @@ from tool.diffrhythm import DiffRhythmTool
 from tool.inspiremusic import InspireMusicTool
 from tool.mmaudio import MMAudioTool
 from utils.runtime_logger import instrument_tool_run
+
+log = logging.getLogger(__name__)
 
 
 class ToolLibrary:
@@ -28,20 +31,35 @@ class ToolLibrary:
             return
         with open(config_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
+        basic_cfg = dict(config.get("basic") or config.get("basic_config") or {})
+        basic_hf_token = str(basic_cfg.get("hf_token") or "").strip()
+
         for name, tool_config in (config.get("tools") or {}).items():
-            provider = tool_config.get("provider")
+            merged_tool_config = dict(tool_config or {})
+            tool_hf_token = str(merged_tool_config.get("hf_token") or "").strip()
+            if not tool_hf_token and basic_hf_token:
+                merged_tool_config["hf_token"] = basic_hf_token
+
+            provider = merged_tool_config.get("provider")
             spec = ToolSpec(
                 name=name,
-                task=tool_config.get("task", ""),
-                command=tool_config.get("command", ""),
-                inputs=list(tool_config.get("inputs", []) or []),
-                conda_env=tool_config.get("conda_env", ""),
-                notes=tool_config.get("notes", ""),
+                task=merged_tool_config.get("task", ""),
+                command=merged_tool_config.get("command", ""),
+                inputs=list(merged_tool_config.get("inputs", []) or []),
+                conda_env=merged_tool_config.get("conda_env", ""),
+                notes=merged_tool_config.get("notes", ""),
                 provider=provider or "",
-                default_model=tool_config.get("default_model", ""),
-                parameters=dict(tool_config.get("parameters", {}) or {}),
+                default_model=merged_tool_config.get("default_model", ""),
+                parameters=dict(merged_tool_config.get("parameters", {}) or {}),
             )
-            spec.runtime = self._build_runtime(spec, tool_config)
+            try:
+                spec.runtime = self._build_runtime(spec, merged_tool_config)
+            except Exception as e:
+                # Don't let one dead/slow Gradio Space take down the whole ToolLibrary.
+                # The tool will be absent from the registry; attempts to use it will
+                # raise KeyError in `get()` and be caught by the ToT error path.
+                log.warning("Skipping tool %s: %s: %s", name, type(e).__name__, e)
+                continue
             self.tools[name] = spec
 
     def _build_runtime(self, spec: ToolSpec, tool_config: Dict[str, Any]) -> BaseTool:
