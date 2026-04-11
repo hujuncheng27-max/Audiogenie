@@ -217,13 +217,18 @@ class ToTExecutor:
             return "", {
                 "runner": "tool_lib",
                 "error": str(e),
+                "error_type": type(e).__name__,
                 "cmd": e.cmd,
                 "returncode": e.returncode,
                 "stdout": e.stdout,
                 "stderr": e.stderr,
             }
         except Exception as e:
-            return "", {"runner": "tool_lib", "error": str(e)}
+            return "", {
+                "runner": "tool_lib",
+                "error": str(e),
+                "error_type": type(e).__name__,
+            }
 
 
     def run(self, event: Dict[str, Any], workdir: str) -> Tuple[str, Dict[str, Any], Dict[str, dict]]:
@@ -295,11 +300,18 @@ class ToTExecutor:
                 if "stdout" in meta_extras: node.meta["stdout"] = meta_extras["stdout"]
                 if "stderr" in meta_extras: node.meta["stderr"] = meta_extras["stderr"]
                 if "mp4" in meta_extras: node.meta["mp4"] = meta_extras["mp4"]
+                if "error" in meta_extras: node.meta["error"] = meta_extras["error"]
+                if "error_type" in meta_extras: node.meta["error_type"] = meta_extras["error_type"]
 
                 if not wav_path or not os.path.exists(wav_path):
                     scores = {"quality": 0.0, "alignment": 0.0, "aesthetics": 0.0}
-                    suggestions = [f"Tool failed to generate valid audio output"]
-                    log_step(f"Tool output validation failed: {wav_path}")
+                    err_msg = meta_extras.get("error")
+                    if err_msg:
+                        err_type = meta_extras.get("error_type") or "Error"
+                        suggestions = [f"Tool failed: {err_type}: {err_msg}"]
+                    else:
+                        suggestions = ["Tool failed to generate valid audio output"]
+                    log_step(f"Tool output validation failed: wav_path={wav_path} error={meta_extras.get('error')}")
                 else:
                     scores, suggestions = self.critic.evaluate(event, wav_path, self.llm)
                 node.meta["scores"] = scores
@@ -318,7 +330,14 @@ class ToTExecutor:
                     suggestions=suggestions,
                 )
 
-                if _weighted_score(scores) > _weighted_score(best_scores):
+                # Always promote a valid wav when best_wav is still empty — the critic
+                # may be a text-only LLM that returns all-zero scores for audio inputs,
+                # in which case strict `>` comparison would never pick any candidate.
+                has_valid_wav = bool(wav_path) and os.path.exists(wav_path)
+                if has_valid_wav and (
+                    best_wav is None
+                    or _weighted_score(scores) > _weighted_score(best_scores)
+                ):
                     best_scores = scores
                     best_wav = wav_path
                     log_step(f"Memory Tree best update: model={model_name}, weighted={_weighted_score(scores):.3f}")
