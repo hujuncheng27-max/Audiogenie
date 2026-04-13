@@ -10,6 +10,5 @@ coverage/
 *.db-wal
 *.db-shm
 __pycache__/
-config.yaml
 outputs/
 backend/uploads/

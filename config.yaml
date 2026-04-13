@@ -1,0 +1,165 @@
+# 项目名称与通用配置
+project_name: "MultiLLMProject"
+version: "1.0"
+
+# 基础共享配置（全项目共用）
+basic:
+  hf_token: "YOUR_HF_TOKEN_HERE"
+  request_max_attempts: 3
+  request_retry_delay_seconds: 2.0
+  media_upload:
+    method: huggingface
+    enabled: true
+    types:
+      - videos
+    huggingface:
+      repo_id: xscdvfaaqqq/cache_data
+      repo_type: "dataset"
+      prefix: "videos"
+      public_base_url: "https://hf-mirror.com"
+    dashscope:
+      api_key:
+      base_url: "https://dashscope.aliyuncs.com/api/v1"
+      purpose: "file-extract"
+      description: ""
+
+# LLM 核心配置区域
+llms:
+  # Kimi K2.5 (OpenAI-compatible) — 当前默认使用
+  kimi:
+    provider: "openai"
+    api_url: "https://api.hpc-ai.com/inference/v1"
+    api_key: "YOUR_KIMI_API_KEY_HERE"
+    default_model: "moonshotai/kimi-k2.5"
+    parameters:
+      temperature: 0.2
+      max_tokens: 8192
+
+  # 自定义名称 1：用于主要对话的 OpenAI
+  primary_openai:
+    provider: "openai"
+    api_url: "https://api.openai.com/v1"
+    api_key: "sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+    default_model: "gpt-4-turbo"
+    parameters:
+      temperature: 0.7
+      max_tokens: 4096
+
+  # 自定义名称 2：用于长文本处理的 Gemini
+  google_gemini:
+    provider: "google"
+    api_url: "https://generativelanguage.googleapis.com/v1beta"
+    api_key: "AIzaSyxxxxxxxxxxxxxxxxxxxxxxxx"
+    default_model: "gemini-1.5-pro"
+    parameters:
+      temperature: 0.2
+      max_tokens: 8192
+
+  nvidia-cosmos:
+    provider: "nvidia"
+    api_url: "https://integrate.api.nvidia.com/v1/chat/completions"
+    api_key: ""
+    default_model: "nvidia/Cosmos-Reason2-8B"
+    parameters:
+      temperature: 0.3
+      max_tokens: 4096
+
+  hf-qwen3-vl-4b:
+    provider: "huggingface"
+    default_model: "Qwen/Qwen3-VL-4B-Instruct"
+    parameters:
+      device_map: "auto"
+
+  hf-qwen3-vl-8b:
+    provider: "huggingface"
+    default_model: "Qwen/Qwen3-VL-8B-Instruct"
+    parameters:
+      device_map: "auto"
+
+  qwen3.5-demo:
+    provider: "gradio"
+    default_model: "Qwen/Qwen3.5-Omni-Offline-Demo"
+    parameters:
+      temperature: 0.7
+      top_p: 0.8
+
+  qwen3-omni-alibaba:
+    provider: "openai"
+    api_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    api_key:
+    default_model: "qwen3-omni-flash-2025-12-01"
+    parameters:
+      temperature: 0.7
+
+tools:
+  cosyvoice3_online:
+    provider: "gradio"
+    task: "tts"
+    default_model: "FunAudioLLM/Fun-CosyVoice3-0.5B"
+    space: "FunAudioLLM/Fun-CosyVoice3-0.5B"
+    api_name: "/generate_audio"
+    inputs:
+      - target_text
+      - prompt_transcript
+      - prompt_wav
+    notes: "CosyVoice3 online zero-shot via Gradio API."
+    parameters:
+      mode_value: "zero_shot"
+      seed: 0
+      ui_lang: "Zh"
+
+  mmaudio_online:
+    provider: "gradio"
+    task: "sfx"
+    default_model: "hkchengrex/MMAudio"
+    space: "xscdvfaaqqq/MMAudio"
+    inputs:
+      - prompt
+      - negative_prompt
+      - seed
+      - num_steps
+      - cfg_strength
+      - duration
+      - video
+    notes: "MMAudio online video-to-audio/text-to-audio via Gradio API."
+    parameters:
+      negative_prompt: "music"
+
+  inspiremusic_online:
+    provider: "gradio"
+    task: "music"
+    default_model: "xscdvfaaqqq/InspireMusic"
+    space: "xscdvfaaqqq/InspireMusic"
+    api_name: "/demo_inspiremusic_t2m"
+    inputs:
+      - text
+      - chorus
+      - max_generate_audio_seconds
+    notes: "InspireMusic online text-to-music via Gradio API (t2m)."
+    parameters:
+      model_name: "InspireMusic-1.5B-Long"
+      chorus: "intro"
+      output_sample_rate: 24000
+
+  diffrhythm_online:
+    provider: "gradio"
+    task: "song_gen"
+    default_model: "ASLP-lab/DiffRhythm"
+    space: "xscdvfaaqqq/DiffRhythm"
+    inputs:
+      - lrc
+      - ref_audio_path
+      - text_prompt
+      - seed
+      - randomize_seed
+      - steps
+      - cfg_strength
+      - file_type
+      - odeint_method
+      - preference_infer
+      - Music_Duration
+    notes: "DiffRhythm online song generation via Gradio API."
+    parameters:
+      file_type: "mp3"
+      odeint_method: "euler"
+      preference_infer: "quality first"
