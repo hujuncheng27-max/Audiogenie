@@ -45,12 +45,6 @@ export function TopNavBar({ currentView, setView, generationConfig, onGeneration
             >
               History
             </button>
-            <button
-              onClick={() => setView('docs')}
-              className={`text-sm tracking-wider transition-colors duration-200 ${currentView === 'docs' ? 'text-primary border-b-2 border-primary pb-1' : 'text-outline hover:text-on-surface'}`}
-            >
-              Docs
-            </button>
           </div>
         </div>
         <div className="flex items-center justify-end min-w-[72px]">

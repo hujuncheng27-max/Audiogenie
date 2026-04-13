@@ -5,17 +5,14 @@
 
 import React from 'react';
 import { BarChart3 } from 'lucide-react';
-import { GenerationConfig } from '../types';
 
 interface JobSummarySectionProps {
   prompt: string;
   videoFile: File | null;
   imageFile: File | null;
   outputClass: string;
-  acousticStyle: string;
   onGenerate: () => void;
   isProcessing?: boolean;
-  generationConfig: GenerationConfig;
 }
 
 export function JobSummarySection({
@@ -23,24 +20,9 @@ export function JobSummarySection({
   videoFile,
   imageFile,
   outputClass,
-  acousticStyle,
   onGenerate,
   isProcessing = false,
-  generationConfig,
 }: JobSummarySectionProps) {
-  const estimatedTime =
-    generationConfig.qualityMode === 'fast'
-      ? '~8s'
-      : generationConfig.qualityMode === 'high-quality'
-        ? '~22s'
-        : '~14s';
-  const computeProfile =
-    generationConfig.qualityMode === 'fast'
-      ? '6.8 TFLOPs'
-      : generationConfig.qualityMode === 'high-quality'
-        ? '19.6 TFLOPs'
-        : '12.4 TFLOPs';
-
   return (
     <div className="bg-surface-container/60 backdrop-blur-xl p-6 rounded-xl flex flex-col gap-8 h-full border border-outline-variant/15">
       <h2 className="font-label text-xs font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
@@ -65,28 +47,13 @@ export function JobSummarySection({
           </ul>
         </div>
         <div className="space-y-2">
-          <p className="text-[10px] text-outline uppercase tracking-widest">Synthesis Pipeline</p>
+          <p className="text-[10px] text-outline uppercase tracking-widest">Output</p>
           <div className="bg-surface-container-lowest/50 p-4 rounded text-xs font-body text-on-surface-variant leading-relaxed">
-            Generating <span className="text-primary lowercase">{outputClass}</span> with <span className="text-primary lowercase">{acousticStyle}</span> acoustic properties in <span className="text-primary">{generationConfig.qualityMode === 'high-quality' ? 'high quality' : generationConfig.qualityMode}</span> mode.
-            Estimated compute: <span className="text-primary">{computeProfile}</span>.
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3 text-xs">
-          <div className="bg-surface-container-lowest/50 p-3 rounded">
-            <p className="text-[10px] uppercase tracking-widest text-outline mb-1">Render Config</p>
-            <p className="text-on-surface">{generationConfig.outputSampleRate} / {generationConfig.bitDepth}</p>
-          </div>
-          <div className="bg-surface-container-lowest/50 p-3 rounded">
-            <p className="text-[10px] uppercase tracking-widest text-outline mb-1">Channels</p>
-            <p className="text-on-surface">{generationConfig.channels}</p>
+            Generating <span className="text-primary lowercase">{outputClass}</span> via multi-agent pipeline.
           </div>
         </div>
         <div className="pt-4 border-t border-outline-variant/10">
-          <div className="flex justify-between items-center mb-6">
-            <span className="text-xs text-outline uppercase">Estimated Time</span>
-            <span className="text-lg font-bold text-on-surface">{estimatedTime}</span>
-          </div>
-          <button 
+          <button
             onClick={onGenerate}
             disabled={isProcessing}
             className={`w-full py-4 rounded-lg text-on-primary font-headline font-extrabold uppercase tracking-widest transition-all active:scale-[0.98] ${isProcessing ? 'bg-outline cursor-not-allowed' : 'bg-primary hover:bg-primary-container'}`}

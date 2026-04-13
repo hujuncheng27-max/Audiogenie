@@ -19,7 +19,6 @@ import { Footer } from './components/Footer';
 import { Workspace } from './components/Workspace';
 import { ProcessingView } from './components/ProcessingView';
 import { HistoryView } from './components/HistoryView';
-import { DocsView } from './components/DocsView';
 import { HomeView } from './components/HomeView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppNoticeBanner } from './components/AppNoticeBanner';
@@ -407,18 +406,6 @@ export default function App() {
                   focusedArtifactId={historyFocusId}
                   onFocusHandled={() => setHistoryFocusId(null)}
                 />
-              </motion.div>
-            )}
-            {view === 'docs' && (
-              <motion.div
-                key="docs"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-                className="flex-grow flex flex-col"
-              >
-                <DocsView />
               </motion.div>
             )}
           </AnimatePresence>
