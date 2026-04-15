@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .routes import upload, generations
 from .services.database import init_db
 
-app = FastAPI(title="AudioGenie API", version="2.0.0")
+app = FastAPI(title="DubMaster API", version="2.0.0")
 
 # Initialise SQLite tables on startup.
 init_db()
@@ -39,7 +39,7 @@ app.include_router(generations.router)
 
 @app.get("/")
 async def root():
-    return {"message": "AudioGenie API is running (v2 — multi-agent pipeline)"}
+    return {"message": "DubMaster API is running (v2 — multi-agent pipeline)"}
 
 
 if __name__ == "__main__":

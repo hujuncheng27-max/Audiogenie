@@ -24,7 +24,7 @@ export function TopNavBar({ currentView, setView, generationConfig, onGeneration
       <nav className="flex justify-between items-center w-full px-12 h-20 bg-background sticky top-0 z-50 border-b border-outline-variant/10">
         <div className="flex items-center gap-8">
           <span className="text-xl font-black tracking-tighter text-on-surface font-headline uppercase cursor-pointer" onClick={() => setView('home')}>
-            AudioGenie
+            DubMaster
           </span>
           <div className="hidden md:flex items-center gap-6">
             <button

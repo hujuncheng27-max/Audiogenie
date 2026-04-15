@@ -104,7 +104,7 @@ export function HistoryView({
       window.open(response.url, '_blank', 'noopener,noreferrer');
     } catch (error) {
       console.error('History export failed:', error);
-      onNotify('warning', 'Export unavailable', 'AudioGenie could not export this artifact just yet.');
+      onNotify('warning', 'Export unavailable', 'DubMaster could not export this artifact just yet.');
     } finally {
       setIsExporting(false);
     }
@@ -360,7 +360,7 @@ export function HistoryView({
                     <div className="mt-4 space-y-3 text-sm text-on-surface-variant">
                       <p>Format: {selectedArtifact?.exportInfo?.format || selectedArtifact?.generationConfig.exportFormat || 'WAV'}</p>
                       <p>Last export: {selectedArtifact?.exportInfo?.lastExportedAt ? formatTimestamp(selectedArtifact.exportInfo.lastExportedAt) : 'Not exported yet'}</p>
-                      <p>Saved locally for this browser version of AudioGenie.</p>
+                      <p>Saved locally for this browser version of DubMaster.</p>
                     </div>
                   </div>
                 </div>

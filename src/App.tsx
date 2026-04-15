@@ -146,7 +146,7 @@ export default function App() {
   };
 
   const runLiveGeneration = async (payload: GenerationPayload) => {
-    pushNotice('info', 'Submitting generation job', 'Sending your current AudioGenie configuration to the live backend.');
+    pushNotice('info', 'Submitting generation job', 'Sending your current DubMaster configuration to the live backend.');
     const response = await createGeneration(payload);
     setActiveGeneration({
       id: response.id,
@@ -253,7 +253,7 @@ export default function App() {
 
   const handleClearHistory = () => {
     setArtifacts(clearHistory());
-    pushNotice('info', 'Local history cleared', 'All locally saved AudioGenie artifacts were removed from this browser.');
+    pushNotice('info', 'Local history cleared', 'All locally saved DubMaster artifacts were removed from this browser.');
   };
 
   const handleExport = async (id: string) => {

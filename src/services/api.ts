@@ -33,7 +33,7 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
       },
     });
   } catch (error) {
-    throw new ApiError('Unable to reach the AudioGenie backend.', path, undefined, {
+    throw new ApiError('Unable to reach the DubMaster backend.', path, undefined, {
       cause: error instanceof Error ? error : undefined,
     });
   }

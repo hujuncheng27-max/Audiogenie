@@ -1,5 +1,5 @@
 """
-Generation service that runs the AudioGenie multi-agent pipeline
+Generation service that runs the DubMaster multi-agent pipeline
 in background threads and exposes status via SQLite.
 """
 from __future__ import annotations
@@ -101,7 +101,7 @@ def _enforce_user_constraints(
 
 
 class GenerationService:
-    """Generation service backed by SQLite + real AudioGenie pipeline."""
+    """Generation service backed by SQLite + real DubMaster pipeline."""
 
     # ── helpers ────────────────────────────────────────────────────
 
@@ -313,7 +313,7 @@ class GenerationService:
 
             # Import the multi-agent framework (lazy import to avoid startup cost)
             from router import load_llm
-            from agents import AudioGenieSystem
+            from agents import DubMasterSystem
 
             # Prepare output directory
             outdir = os.path.join(_PROJECT_ROOT, "outputs", job_id)
@@ -331,7 +331,7 @@ class GenerationService:
             self._update_stage(job_id, GenerationStage.PLANNING.value, "Analyzing inputs and creating audio event plan...")
 
             llm = load_llm(llm_name)
-            system = AudioGenieSystem(llm, outdir=outdir)
+            system = DubMasterSystem(llm, outdir=outdir)
 
             ctx = {
                 "text": prompt,
@@ -492,7 +492,7 @@ class GenerationService:
 
             self._mark_completed(
                 job_id,
-                title=f"AudioGenie_{job_id[-4:]}",
+                title=f"DubMaster_{job_id[-4:]}",
                 art_type=art_type,
                 duration=duration_str,
                 heights=heights,

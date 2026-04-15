@@ -4,7 +4,7 @@ from pathlib import Path
 
 _THIS_FILE = Path(os.path.abspath(__file__))
 _DB_DIR = _THIS_FILE.parent.parent.parent  # services -> app -> backend
-_DB_PATH = _DB_DIR / "audiogenie.db"
+_DB_PATH = _DB_DIR / "dubmaster.db"
 
 
 def get_connection() -> sqlite3.Connection:

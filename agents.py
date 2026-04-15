@@ -323,7 +323,7 @@ def get_shared_tool_lib() -> ToolLibrary:
 
     Building a ToolLibrary eagerly handshakes with every Gradio Space in the
     config, which takes several seconds and can hang if a Space is slow. The
-    backend spawns a fresh AudioGenieSystem per job, so without caching, each
+    backend spawns a fresh DubMasterSystem per job, so without caching, each
     request pays that cost again and one slow Space can time the whole job out.
     """
     global _shared_tool_lib
@@ -332,7 +332,7 @@ def get_shared_tool_lib() -> ToolLibrary:
     return _shared_tool_lib
 
 
-class AudioGenieSystem:
+class DubMasterSystem:
     def __init__(self, llm: LLM, outdir: str = "outputs"):
         self.tool_lib = get_shared_tool_lib()
         self.eval_critic = AudioEvalCritic()
