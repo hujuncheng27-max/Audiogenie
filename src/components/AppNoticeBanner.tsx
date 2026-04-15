@@ -1,10 +1,9 @@
 import React from 'react';
-import { AlertCircle, CheckCircle2, Info, Sparkles, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
 import { AppNotice } from '../types';
 
 interface AppNoticeBannerProps {
   notice: AppNotice;
-  demoModeEnabled: boolean;
   onDismiss: () => void;
 }
 
@@ -22,7 +21,7 @@ const toneIcons = {
   error: AlertCircle,
 };
 
-export function AppNoticeBanner({ notice, demoModeEnabled, onDismiss }: AppNoticeBannerProps) {
+export function AppNoticeBanner({ notice, onDismiss }: AppNoticeBannerProps) {
   const Icon = toneIcons[notice.tone];
 
   return (
@@ -33,15 +32,8 @@ export function AppNoticeBanner({ notice, demoModeEnabled, onDismiss }: AppNotic
             <Icon size={18} className={notice.tone === 'warning' ? 'text-secondary-fixed-dim' : notice.tone === 'success' ? 'text-tertiary' : notice.tone === 'error' ? 'text-destructive' : 'text-primary'} />
           </div>
           <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-3">
-              <p className="text-xs uppercase tracking-widest font-bold">{notice.title}</p>
-              {demoModeEnabled && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-background/40 px-2 py-1 text-[10px] uppercase tracking-widest text-secondary-fixed-dim font-bold">
-                  <Sparkles size={10} /> Demo Mode Ready
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-on-surface-variant">{notice.message}</p>
+            <p className="text-xs uppercase tracking-widest font-bold">{notice.title}</p>
+            <p className="text-sm text-on-surface-variant whitespace-pre-wrap break-words">{notice.message}</p>
           </div>
         </div>
         <button
