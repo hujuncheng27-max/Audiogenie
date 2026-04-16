@@ -95,7 +95,7 @@ llms:
   qwen-omni-critic:
     provider: "openai"
     api_url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-    api_key: "sk-425bfdc41c8c4f3391bb498986524433"
+    api_key: "${DASHSCOPE_API_KEY}"
     default_model: "qwen3-omni-flash"
     stream: true
     parameters:

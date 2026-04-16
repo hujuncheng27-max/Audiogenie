@@ -1,9 +1,7 @@
-# fly.toml — Fly.io configuration for AudioGenie
+# fly.toml — Fly.io configuration for DubMaster
 # Documentation: https://fly.io/docs/reference/configuration/
 
-# Change "audiogenie-demo" to any globally unique name you like.
-# Your app will be available at: https://<app-name>.fly.dev
-app = "audiogenie-demo"
+app = "dubmaster"
 primary_region = "sin"   # Singapore — geographically closest to NUS
 
 [build]
@@ -12,7 +10,7 @@ primary_region = "sin"   # Singapore — geographically closest to NUS
 # Non-secret environment variables (safe to commit)
 # Secrets (API keys) are set via: fly secrets set KEY=value
 [env]
-  DATABASE_PATH = "/data/audiogenie.db"
+  DATABASE_PATH = "/data/dubmaster.db"
   UPLOAD_DIR    = "/data/uploads"
   OUTPUT_DIR    = "/data/outputs"
   # No ALLOWED_ORIGINS needed: frontend is served from the same FastAPI process,
@@ -45,9 +43,9 @@ primary_region = "sin"   # Singapore — geographically closest to NUS
   cpus     = 1
 
 # Persistent volume: stores the SQLite database, uploaded files, and outputs.
-# Create the volume once with: fly volumes create audiogenie_data --region sin --size 10
+# Create the volume once with: fly volumes create dubmaster_data --region sin --size 10
 # The volume persists across deploys and machine restarts.
 [[mounts]]
-  source      = "audiogenie_data"
+  source      = "dubmaster_data"
   destination = "/data"
   initial_size = "10gb"
