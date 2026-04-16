@@ -337,11 +337,12 @@ class GeminiLLM(LLM):
 
 
 class OpenaiLLM(LLM):
-    def __init__(self, model: str = "gpt-4o", api_key: Optional[str] = None, base_url: Optional[str] = None, **parameters):
+    def __init__(self, model: str = "gpt-4o", api_key: Optional[str] = None, base_url: Optional[str] = None, stream: bool = False, **parameters):
         super().__init__(**parameters)
         self.model = model
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         self.base_url = base_url
+        self.stream = _as_bool(stream, default=False)
 
         if not self.api_key:
             raise RuntimeError("OPENAI_API_KEY not set.")
@@ -404,6 +405,8 @@ class OpenaiLLM(LLM):
         messages = [{"role": "system", "content": system}, {"role": "user", "content": content}]
 
         try:
+            if self.stream:
+                return self._send_streaming(messages, stop)
             resp = self._client.chat.completions.create(
                 model=self.model,
                 messages=messages,
@@ -418,6 +421,25 @@ class OpenaiLLM(LLM):
             return text
         finally:
             self._cleanup_uploaded_media(uploaded_media)
+
+    def _send_streaming(self, messages: list, stop=None) -> str:
+        """Handle streaming responses (required by e.g. Qwen-Omni)."""
+        stream = self._client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            stop=stop,
+            max_tokens=8192,
+            stream=True,
+            stream_options={"include_usage": True},
+            modalities=["text"],
+        )
+        chunks: list[str] = []
+        for chunk in stream:
+            if chunk.choices:
+                delta = chunk.choices[0].delta
+                if getattr(delta, "content", None):
+                    chunks.append(delta.content)
+        return "".join(chunks)
 
     def _to_list(self, x):
         if not x:
@@ -484,8 +506,9 @@ class OpenaiLLM(LLM):
                 item = item["path"]
 
         if isinstance(item, (bytes, bytearray)):
+            b64 = base64.b64encode(bytes(item)).decode("utf-8")
             return {
-                "data": base64.b64encode(bytes(item)).decode("utf-8"),
+                "data": f"data:;base64,{b64}",
                 "format": "wav",
             }
 
@@ -502,13 +525,14 @@ class OpenaiLLM(LLM):
                     "data": str(uploaded_url),
                     "format": self._audio_format(s),
                 }
+            b64 = self._encode_file(s)
             return {
-                "data": self._encode_file(s),
+                "data": f"data:;base64,{b64}",
                 "format": self._audio_format(s),
             }
 
-        # Fallback: treat as raw base64 string.
-        return {"data": s, "format": "wav"}
+        # Fallback: treat as raw base64 string with prefix.
+        return {"data": f"data:;base64,{s}", "format": "wav"}
 
     def _encode_image(self, path: str) -> str:
         return self._encode_file(path)

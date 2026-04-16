@@ -5,7 +5,7 @@ import argparse
 import json
 import pathlib
 from router import load_llm
-from agents import AudioGenieSystem
+from agents import DubMasterSystem
 from utils.runtime_logger import log_step
 
 
@@ -14,7 +14,7 @@ os.environ['GEMINI_API_KEY'] = 'Your_Gemini_Api_Key'
 
 def main():
     log_step("Entrypoint started: parsing CLI arguments")
-    parser = argparse.ArgumentParser(description="AudioGenie (training-free multi-agent)")
+    parser = argparse.ArgumentParser(description="DubMaster (training-free multi-agent)")
     parser.add_argument("--text", default=None)
     parser.add_argument("--image", default=None)
     parser.add_argument("--video", default=None, help="Path to .mp4 video file.")
@@ -37,7 +37,11 @@ def main():
         "video": args.video if args.video not in ("None", "none", "") else None,
     }
 
-    system = AudioGenieSystem(llm, outdir=outdir)
+    try:
+        critic_llm = load_llm("qwen-omni-critic")
+    except Exception:
+        critic_llm = None
+    system = DubMasterSystem(llm, outdir=outdir, critic_llm=critic_llm)
     log_step("System initialized; starting run pipeline")
     out = system.run(ctx, max_depth=args.max_depth, max_siblings=args.max_siblings)
 

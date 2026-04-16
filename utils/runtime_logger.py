@@ -34,11 +34,11 @@ def _colored_prefix(tag: str, color: str) -> str:
 
 
 def _logger() -> logging.Logger:
-    logger = logging.getLogger("audiogenie")
+    logger = logging.getLogger("dubmaster")
     if logger.handlers:
         return logger
 
-    level_name = os.environ.get("AUDIOGENIE_LOG_LEVEL", "INFO").upper()
+    level_name = os.environ.get("DUBMASTER_LOG_LEVEL", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
 
     handler = logging.StreamHandler()
@@ -51,7 +51,7 @@ def _logger() -> logging.Logger:
 
 
 def get_runtime_logger() -> logging.Logger:
-    """Return the shared AudioGenie runtime logger instance."""
+    """Return the shared DubMaster runtime logger instance."""
     return _logger()
 
 

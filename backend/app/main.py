@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from .routes import upload, generations
 from .services.database import init_db
 
-app = FastAPI(title="AudioGenie API", version="2.0.0")
+app = FastAPI(title="DubMaster API", version="2.0.0")
 
 # Initialise SQLite tables on startup.
 init_db()
@@ -53,7 +53,7 @@ app.include_router(generations.router)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "message": "AudioGenie API is running (v2 — multi-agent pipeline)"}
+    return {"status": "ok", "message": "DubMaster API is running (v2 — multi-agent pipeline)"}
 
 
 # ── Static file serving (production: frontend built into dist/) ───────────────
@@ -75,7 +75,7 @@ else:
     # Local development mode: no dist/ — just confirm the API is alive
     @app.get("/")
     async def root():
-        return {"message": "AudioGenie API is running (v2 — multi-agent pipeline)"}
+        return {"message": "DubMaster API is running (v2 — multi-agent pipeline)"}
 
 
 if __name__ == "__main__":

@@ -68,11 +68,13 @@ class ToTExecutor:
         prompt_max_retries: int = 1,
         max_depth: int = 3,
         max_siblings: int = 2,
-        prefer_bin: bool = True, 
+        prefer_bin: bool = True,
+        critic_llm: LLM = None,
     ):
         self.tool_lib = tool_lib
         self.llm = llm
         self.critic = critic
+        self.critic_llm = critic_llm or llm
         self.prompt_max_retries = max(0, int(prompt_max_retries))
         self.max_depth = max_depth
         self.max_siblings = max_siblings
@@ -313,7 +315,7 @@ class ToTExecutor:
                         suggestions = ["Tool failed to generate valid audio output"]
                     log_step(f"Tool output validation failed: wav_path={wav_path} error={meta_extras.get('error')}")
                 else:
-                    scores, suggestions = self.critic.evaluate(event, wav_path, self.llm)
+                    scores, suggestions = self.critic.evaluate(event, wav_path, self.critic_llm)
                 node.meta["scores"] = scores
                 node.meta["weighted_score"] = _weighted_score(scores)
                 node.meta["suggestions"] = suggestions

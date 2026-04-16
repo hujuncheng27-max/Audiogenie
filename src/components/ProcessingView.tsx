@@ -74,7 +74,7 @@ export function ProcessingView({ activeGeneration }: ProcessingViewProps) {
       ? `Image: ${activeGeneration.payload.imageFileName}`
       : 'Prompt only';
   const runtimeModeLabel = activeGeneration?.runtimeMode === 'demo' ? 'Demo Preview' : 'Live Backend';
-  const statusMessage = activeGeneration?.statusMessage || 'Preparing AudioGenie generation pipeline.';
+  const statusMessage = activeGeneration?.statusMessage || 'Preparing DubMaster generation pipeline.';
 
   return (
     <div className="p-8 md:p-12 max-w-7xl mx-auto w-full space-y-12">

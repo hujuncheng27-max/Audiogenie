@@ -1,11 +1,11 @@
-# AudioGenie
+# DubMaster
 
-AudioGenie is a full-stack multimodal audio-generation app. A React + TypeScript frontend
+DubMaster is a full-stack multimodal audio-generation app. A React + TypeScript frontend
 drives a FastAPI backend that runs a real multi-agent pipeline (planning / assign-refine /
 Tree-of-Thought synthesis / mix) on top of HuggingFace Gradio Spaces for the actual model
 inference.
 
-Given a text prompt plus optional image or video, AudioGenie produces a layered audio track
+Given a text prompt plus optional image or video, DubMaster produces a layered audio track
 composed of sound effects, speech, music and song, respecting the output category and target
 duration selected in the UI.
 
@@ -19,7 +19,7 @@ duration selected in the UI.
          │  run_pipeline() → background thread
          ▼
   Multi-agent pipeline (repo root)
-      agents.py        GenerationTeam / SupervisorTeam / AudioGenieSystem
+      agents.py        GenerationTeam / SupervisorTeam / DubMasterSystem
       plan.py          AudioEvent / Plan schemas
       experts.py       SFX / Speech / Music / Song domain experts
       critiquers.py    Planning / domain / eval critics
