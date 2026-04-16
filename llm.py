@@ -508,7 +508,7 @@ class OpenaiLLM(LLM):
         if isinstance(item, (bytes, bytearray)):
             b64 = base64.b64encode(bytes(item)).decode("utf-8")
             return {
-                "data": f"data:;base64,{b64}",
+                "data": b64,
                 "format": "wav",
             }
 
@@ -527,12 +527,12 @@ class OpenaiLLM(LLM):
                 }
             b64 = self._encode_file(s)
             return {
-                "data": f"data:;base64,{b64}",
+                "data": b64,
                 "format": self._audio_format(s),
             }
 
-        # Fallback: treat as raw base64 string with prefix.
-        return {"data": f"data:;base64,{s}", "format": "wav"}
+        # Fallback: treat as raw base64 string.
+        return {"data": s, "format": "wav"}
 
     def _encode_image(self, path: str) -> str:
         return self._encode_file(path)
@@ -602,7 +602,12 @@ class NvidiaLLM(LLM):
         }
 
         resp = requests.post(self.invoke_url, headers=headers, json=payload)
-        return resp.json()["choices"][0]["message"]["content"]
+        if not resp.ok:
+            raise RuntimeError(f"NvidiaLLM API error {resp.status_code}: {resp.text[:200]}")
+        data = resp.json()
+        if "choices" not in data or not data["choices"]:
+            raise RuntimeError(f"NvidiaLLM unexpected response: {data}")
+        return data["choices"][0]["message"]["content"]
     
 
 class HuggingfaceLLM(LLM):
@@ -735,8 +740,7 @@ class GradioLLM(LLM):
         if chat_history and isinstance(chat_history, list):
             last_message = chat_history[-1]
             if last_message.get("role") == "assistant":
-                # 3. 提取其中的 'content' 字段
-                assistant_response = last_message.get("content")
-                return assistant_response
+                return last_message.get("content") or ""
+            raise RuntimeError(f"Last message is not from assistant: {last_message}")
         else:
             raise RuntimeError(f"Unexpected response format from Gradio LLM: {result}")

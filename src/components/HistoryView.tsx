@@ -323,7 +323,7 @@ export function HistoryView({
                       </div>
                       <div className="flex justify-between gap-4">
                         <span className="text-outline uppercase text-[10px] tracking-widest">Output</span>
-                        <span className="text-on-surface">{selectedArtifact?.previewMetadata.outputClass || '-'}</span>
+                        <span className="text-on-surface">{selectedArtifact?.previewMetadata?.outputClass || '-'}</span>
                       </div>
                       <div className="flex justify-between gap-4">
                         <span className="text-outline uppercase text-[10px] tracking-widest">Quality Mode</span>
@@ -331,11 +331,11 @@ export function HistoryView({
                       </div>
                       <div className="flex justify-between gap-4">
                         <span className="text-outline uppercase text-[10px] tracking-widest">Style</span>
-                        <span className="text-on-surface">{selectedArtifact?.previewMetadata.acousticStyle || '-'}</span>
+                        <span className="text-on-surface">{selectedArtifact?.previewMetadata?.acousticStyle || '-'}</span>
                       </div>
                       <div className="flex justify-between gap-4">
                         <span className="text-outline uppercase text-[10px] tracking-widest">Model</span>
-                        <span className="text-on-surface">{selectedArtifact?.previewMetadata.languageModel || '-'}</span>
+                        <span className="text-on-surface">{selectedArtifact?.previewMetadata?.languageModel || '-'}</span>
                       </div>
                       <div className="flex justify-between gap-4">
                         <span className="text-outline uppercase text-[10px] tracking-widest">Render</span>

@@ -335,7 +335,8 @@ class GenerationService:
             llm = load_llm(llm_name)
             try:
                 critic_llm = load_llm("qwen-omni-critic")
-            except Exception:
+            except Exception as _critic_err:
+                print(f"[WARN] Failed to load qwen-omni-critic, audio scoring disabled: {_critic_err}")
                 critic_llm = None
             system = DubMasterSystem(llm, outdir=outdir, critic_llm=critic_llm)
 
@@ -387,6 +388,7 @@ class GenerationService:
                 eval_critic=system.eval_critic,
                 max_depth=max_depth,
                 max_siblings=max_siblings,
+                critic_llm=critic_llm,
             )
 
             # Mixing
@@ -415,7 +417,8 @@ class GenerationService:
             keep_file = os.path.join(outdir, "stage2_sfx_probe_keep.json")
             if os.path.exists(keep_file):
                 try:
-                    keep_list = json.load(open(keep_file, "r", encoding="utf-8"))
+                    with open(keep_file, "r", encoding="utf-8") as _kf:
+                        keep_list = json.load(_kf)
                     if isinstance(keep_list, list):
                         for seg in keep_list:
                             w = seg.get("wav_file")

@@ -77,29 +77,30 @@ async def export_generation(
 
     # Check if we have a real audio file
     audio_path = generation_service.get_audio_path(id)
-    if audio_path and os.path.exists(audio_path):
-        return ExportResponse(
-            url=str(
-                request.url_for("download_export", id=id).include_query_params(
-                    format=format,
-                    sample_rate=sample_rate,
-                    bit_depth=bit_depth,
-                    channels=channels,
-                )
-            ).replace("http://", "https://", 1)
-        )
-
-    # Fallback to mock export URL
-    return ExportResponse(
-        url=str(
+    def _make_export_url() -> str:
+        url = str(
             request.url_for("download_export", id=id).include_query_params(
                 format=format,
                 sample_rate=sample_rate,
                 bit_depth=bit_depth,
                 channels=channels,
             )
-        ).replace("http://", "https://", 1)
-    )
+        )
+        # Only upgrade to https when we're sure the request itself arrived over https,
+        # or when a trusted reverse-proxy header says so.  A naive str.replace() would
+        # corrupt legitimate http:// URLs in local/dev setups and break behind proxies
+        # that forward plain http internally.
+        forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip()
+        scheme = forwarded_proto or request.url.scheme
+        if scheme == "https" and url.startswith("http://"):
+            url = "https://" + url[len("http://"):]
+        return url
+
+    if audio_path and os.path.exists(audio_path):
+        return ExportResponse(url=_make_export_url())
+
+    # Fallback to mock export URL
+    return ExportResponse(url=_make_export_url())
 
 
 @router.get("/{id}/export/download", name="download_export")

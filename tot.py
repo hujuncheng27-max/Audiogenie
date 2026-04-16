@@ -234,6 +234,7 @@ class ToTExecutor:
 
 
     def run(self, event: Dict[str, Any], workdir: str) -> Tuple[str, Dict[str, Any], Dict[str, dict]]:
+        self.nodes = {}  # reset per-event to avoid cross-event node pollution
         if event.get("keep") and isinstance(event.get("keep_wav"), str) and os.path.exists(event["keep_wav"]):
             log_step("ToT skip generation: using keep_wav from stage-2")
             nodes_snapshot = {

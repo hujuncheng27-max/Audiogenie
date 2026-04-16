@@ -387,7 +387,8 @@ class DubMasterSystem:
         keep_file = os.path.join(self.outdir, "stage2_sfx_probe_keep.json")
         if os.path.exists(keep_file):
             try:
-                keep_list = json.load(open(keep_file, "r", encoding="utf-8"))
+                with open(keep_file, "r", encoding="utf-8") as _kf:
+                    keep_list = json.load(_kf)
                 if isinstance(keep_list, list):
                     for seg in keep_list:
                         w = seg.get("wav_file")

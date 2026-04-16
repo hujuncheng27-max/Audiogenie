@@ -118,8 +118,9 @@ def run_tool(tool: ToolSpec, args: Dict[str, Any], output_wav: Optional[str] = N
     runtime = getattr(tool, "runtime", None)
     if runtime is None:
         raise RuntimeError(f"Tool '{tool.name}' has no runtime bound in tools_v2")
-    runtime = instrument_tool_run(runtime)
-    tool.runtime = runtime
+    if not getattr(getattr(runtime, "run", None), "_logged", False):
+        runtime = instrument_tool_run(runtime)
+        tool.runtime = runtime
 
     normalized_args = dict(args or {})
 
