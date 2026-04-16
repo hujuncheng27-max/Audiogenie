@@ -1,12 +1,21 @@
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, Optional
 
 from .base import GradioTool
 
 
 class CosyVoice3Tool(GradioTool):
-	"""CosyVoice3 zero-shot TTS wrapper backed by the Gradio API."""
+	"""CosyVoice3 TTS wrapper backed by the Gradio API.
+
+	Supports two modes:
+	- zero_shot: voice cloning from a reference wav (requires a valid local
+	  file path or URL in prompt_wav).
+	- instruct: no reference audio needed; voice style is driven by
+	  instruct_text.  This is the automatic fallback when prompt_wav is
+	  missing or points to a file that does not exist.
+	"""
 
 	def _mode_value(self, args: Dict[str, Any]) -> str:
 		return str(args.get("mode_value") or args.get("mode") or "zero_shot")
@@ -30,11 +39,10 @@ class CosyVoice3Tool(GradioTool):
 
 	def _prompt_wav_upload(self, prompt_wav: str):
 		from gradio_client import handle_file
-
 		return handle_file(prompt_wav)
 
 	def run(self, args: Dict[str, Any], output_wav: Optional[str] = None) -> str:
-		"""Map project-side TTS args to CosyVoice3's `/generate_audio` API."""
+		"""Map project-side TTS args to CosyVoice3's /generate_audio API."""
 		args = dict(args or {})
 
 		# Defensive compatibility: callers may pass nested args as
@@ -49,7 +57,18 @@ class CosyVoice3Tool(GradioTool):
 		target_text = args.get("target_text") or args.get("text") or args.get("tts_text")
 		if not target_text:
 			raise self._tool_error("Missing required argument: target_text/text/tts_text")
-		prompt_wav = str(self._require(args, "prompt_wav"))
+
+		prompt_wav = str(args.get("prompt_wav") or "")
+		if not prompt_wav or (
+			not prompt_wav.startswith("http://")
+			and not prompt_wav.startswith("https://")
+			and not os.path.isfile(prompt_wav)
+		):
+			raise self._tool_error(
+				"CosyVoice3 requires a reference audio file (prompt_wav). "
+				"Please upload a short WAV/MP3 clip as the voice reference."
+			)
+
 		prompt_text = str(args.get("prompt_text") or args.get("prompt_transcript") or "")
 
 		result = self._predict(

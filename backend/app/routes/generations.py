@@ -86,7 +86,7 @@ async def export_generation(
                     bit_depth=bit_depth,
                     channels=channels,
                 )
-            )
+            ).replace("http://", "https://", 1)
         )
 
     # Fallback to mock export URL
@@ -98,7 +98,7 @@ async def export_generation(
                 bit_depth=bit_depth,
                 channels=channels,
             )
-        )
+        ).replace("http://", "https://", 1)
     )
 
 

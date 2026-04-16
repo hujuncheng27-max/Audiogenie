@@ -5,7 +5,11 @@ from pathlib import Path
 from .database import get_connection
 
 _THIS_FILE = Path(os.path.abspath(__file__))
-_UPLOAD_DIR = _THIS_FILE.parent.parent.parent / "uploads"
+
+# Use UPLOAD_DIR env var if set (production: Fly.io Volume at /data/uploads).
+# Fall back to backend/uploads/ for local development.
+_DEFAULT_UPLOAD_DIR = _THIS_FILE.parent.parent.parent / "uploads"
+_UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", str(_DEFAULT_UPLOAD_DIR)))
 
 
 class StorageService:

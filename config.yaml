@@ -4,7 +4,7 @@ version: "1.0"
 
 # 基础共享配置（全项目共用）
 basic:
-  hf_token: "YOUR_HF_TOKEN_HERE"
+  hf_token: "${HF_TOKEN}"
   request_max_attempts: 3
   request_retry_delay_seconds: 2.0
   media_upload:
@@ -29,7 +29,7 @@ llms:
   kimi:
     provider: "openai"
     api_url: "https://api.hpc-ai.com/inference/v1"
-    api_key: "YOUR_KIMI_API_KEY_HERE"
+    api_key: "${KIMI_API_KEY}"
     default_model: "moonshotai/kimi-k2.5"
     parameters:
       temperature: 0.2

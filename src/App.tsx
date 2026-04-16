@@ -131,7 +131,12 @@ export default function App() {
       try {
         pushNotice('info', 'Auto-export started', 'Preparing your latest result for download.');
         const exportResponse = await handleExport(resultId);
-        window.open(exportResponse.url, '_blank', 'noopener,noreferrer');
+        const a = document.createElement('a');
+        a.href = exportResponse.url;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
       } catch (autoExportError) {
         console.error('Auto export failed:', autoExportError);
         pushNotice('warning', 'Export delayed', 'The result was created, but automatic export could not be opened right away.');

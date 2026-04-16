@@ -315,8 +315,10 @@ class GenerationService:
             from router import load_llm
             from agents import AudioGenieSystem
 
-            # Prepare output directory
-            outdir = os.path.join(_PROJECT_ROOT, "outputs", job_id)
+            # Prepare output directory — use OUTPUT_DIR env var if set
+            # (production: Fly.io Volume at /data/outputs), else project root /outputs/
+            _output_base = os.environ.get("OUTPUT_DIR", os.path.join(_PROJECT_ROOT, "outputs"))
+            outdir = os.path.join(_output_base, job_id)
             os.makedirs(outdir, exist_ok=True)
 
             # Save output dir to DB

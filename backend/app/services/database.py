@@ -3,8 +3,11 @@ import sqlite3
 from pathlib import Path
 
 _THIS_FILE = Path(os.path.abspath(__file__))
-_DB_DIR = _THIS_FILE.parent.parent.parent  # services -> app -> backend
-_DB_PATH = _DB_DIR / "audiogenie.db"
+
+# Use DATABASE_PATH env var if set (production: Fly.io Volume at /data/audiogenie.db).
+# Fall back to the local path inside backend/ for local development.
+_DEFAULT_DB_PATH = _THIS_FILE.parent.parent.parent / "audiogenie.db"
+_DB_PATH = Path(os.environ.get("DATABASE_PATH", str(_DEFAULT_DB_PATH)))
 
 
 def get_connection() -> sqlite3.Connection:

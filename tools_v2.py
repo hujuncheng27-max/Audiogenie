@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import Any, Dict, Optional
 
 import yaml
@@ -17,6 +18,25 @@ from utils.runtime_logger import instrument_tool_run
 log = logging.getLogger(__name__)
 
 
+def _expand_env_vars(obj):
+    """Recursively expand ${VAR_NAME} placeholders using environment variables.
+
+    Allows config.yaml to store secrets as ${HF_TOKEN} etc. rather than
+    hardcoded values. On Fly.io secrets are env vars; locally use a .env file.
+    """
+    if isinstance(obj, dict):
+        return {k: _expand_env_vars(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_expand_env_vars(i) for i in obj]
+    if isinstance(obj, str):
+        return re.sub(
+            r"\$\{([^}]+)\}",
+            lambda m: os.environ.get(m.group(1), ""),
+            obj,
+        )
+    return obj
+
+
 class ToolLibrary:
     """Config-driven registry that binds ToolSpec records to runtime tool objects."""
 
@@ -30,7 +50,7 @@ class ToolLibrary:
         if not os.path.exists(config_path):
             return
         with open(config_path, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f) or {}
+            config = _expand_env_vars(yaml.safe_load(f) or {})
         basic_cfg = dict(config.get("basic") or config.get("basic_config") or {})
         basic_hf_token = str(basic_cfg.get("hf_token") or "").strip()
 

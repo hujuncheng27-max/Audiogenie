@@ -101,7 +101,12 @@ export function HistoryView({
     setIsExporting(true);
     try {
       const response = await onExport(selectedTrack);
-      window.open(response.url, '_blank', 'noopener,noreferrer');
+      const a = document.createElement('a');
+      a.href = response.url;
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     } catch (error) {
       console.error('History export failed:', error);
       onNotify('warning', 'Export unavailable', 'AudioGenie could not export this artifact just yet.');
