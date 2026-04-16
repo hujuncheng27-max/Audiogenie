@@ -249,10 +249,11 @@ class GenerationTeam:
         eval_critic: AudioEvalCritic,
         max_depth: int = 3,
         max_siblings: int = 3,
+        critic_llm: "LLM | None" = None,
     ) -> Dict[str, Any]:
         log_step("Stage-3 synthesis: launching ToT executor")
         pathlib.Path(outdir).mkdir(parents=True, exist_ok=True)
-        executor = ToTExecutor(self.tool_lib, self.llm, eval_critic, max_depth=max_depth, max_siblings=max_siblings)
+        executor = ToTExecutor(self.tool_lib, self.llm, eval_critic, max_depth=max_depth, max_siblings=max_siblings, critic_llm=critic_llm)
         results = []
         for idx, e in enumerate(plan.events):
             log_step(f"Stage-3 event begin: index={idx}, type={e.audio_type}")
@@ -333,9 +334,10 @@ def get_shared_tool_lib() -> ToolLibrary:
 
 
 class DubMasterSystem:
-    def __init__(self, llm: LLM, outdir: str = "outputs"):
+    def __init__(self, llm: LLM, outdir: str = "outputs", critic_llm: LLM = None):
         self.tool_lib = get_shared_tool_lib()
         self.eval_critic = AudioEvalCritic()
+        self.critic_llm = critic_llm
         self.generation = GenerationTeam(llm, self.tool_lib)
         self.supervisor = SupervisorTeam(llm)
         self.outdir = outdir
@@ -360,7 +362,8 @@ class DubMasterSystem:
 
         results = self.generation.synthesize_with_tot(
             plan, outdir=self.outdir, eval_critic=self.eval_critic,
-            max_depth=max_depth, max_siblings=max_siblings
+            max_depth=max_depth, max_siblings=max_siblings,
+            critic_llm=self.critic_llm,
         )
         audio_segments = []
         res_events = results.get("events", [])

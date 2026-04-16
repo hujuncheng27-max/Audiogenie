@@ -91,6 +91,16 @@ llms:
     parameters:
       temperature: 0.7
 
+  # Qwen-Omni Realtime — 用于 AudioEvalCritic 音频打分（必须 stream）
+  qwen-omni-critic:
+    provider: "openai"
+    api_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    api_key: "sk-425bfdc41c8c4f3391bb498986524433"
+    default_model: "qwen-omni-turbo-latest"
+    stream: true
+    parameters:
+      temperature: 0.3
+
 tools:
   cosyvoice3_online:
     provider: "gradio"

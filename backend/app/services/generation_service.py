@@ -331,7 +331,11 @@ class GenerationService:
             self._update_stage(job_id, GenerationStage.PLANNING.value, "Analyzing inputs and creating audio event plan...")
 
             llm = load_llm(llm_name)
-            system = DubMasterSystem(llm, outdir=outdir)
+            try:
+                critic_llm = load_llm("qwen-omni-critic")
+            except Exception:
+                critic_llm = None
+            system = DubMasterSystem(llm, outdir=outdir, critic_llm=critic_llm)
 
             ctx = {
                 "text": prompt,

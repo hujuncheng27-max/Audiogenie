@@ -37,7 +37,11 @@ def main():
         "video": args.video if args.video not in ("None", "none", "") else None,
     }
 
-    system = DubMasterSystem(llm, outdir=outdir)
+    try:
+        critic_llm = load_llm("qwen-omni-critic")
+    except Exception:
+        critic_llm = None
+    system = DubMasterSystem(llm, outdir=outdir, critic_llm=critic_llm)
     log_step("System initialized; starting run pipeline")
     out = system.run(ctx, max_depth=args.max_depth, max_siblings=args.max_siblings)
 

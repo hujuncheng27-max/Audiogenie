@@ -31,6 +31,7 @@ def load_llm(name: str):
             model=model,
             api_key=api_key,
             base_url=llm_config.get("api_url"),
+            stream=llm_config.get("stream", False),
             **llm_params,
         )
     elif provider == "google":
