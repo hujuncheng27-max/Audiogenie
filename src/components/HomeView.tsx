@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useRef } from 'react';
-import { ArrowRight, Clapperboard, Image as ImageIcon, Mic2, Music4, Sparkles, Play, Clock, Volume2 } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { ArrowRight, Clapperboard, Image as ImageIcon, Mic2, Music4, Sparkles, Play, Pause, Clock, Volume2 } from 'lucide-react';
 
 interface HomeViewProps {
   onStartCreating: () => void;
@@ -13,48 +13,40 @@ interface HomeViewProps {
 
 const demos = [
   {
-    title: 'Forest Breeze Ambience',
-    description: 'Gentle wind rustling through tree leaves, soft birdsong layered with warm ambient pads and acoustic guitar accents.',
+    title: 'Atmosphere Demo',
+    description: 'Ambient soundscape generation — environmental layers, atmospheric pads, and natural textures driven by multimodal input.',
     outputType: 'Atmosphere',
-    duration: '00:12.0s',
     icon: ImageIcon,
-    source: 'Image + Text Prompt',
-    bars: [8, 12, 10, 14, 16, 18, 14, 12, 16, 20, 18, 14, 10, 12, 16, 14],
+    source: 'Video + Text Prompt',
+    video: '/demos/atmosphere.mp4',
     color: 'bg-tertiary-container text-on-tertiary-container',
-    accent: 'tertiary',
   },
   {
-    title: 'Cinematic Action Foley',
-    description: 'Tightly timed impacts and movement layers extracted from action footage with cinematic transitions and rumble bass.',
+    title: 'Sound Effects Demo',
+    description: 'Precisely timed foley and sound effects synchronized to video events — impacts, movements, and environmental cues.',
     outputType: 'Sound Effects',
-    duration: '00:18.0s',
     icon: Clapperboard,
     source: 'Video Upload',
-    bars: [14, 24, 18, 12, 28, 30, 22, 16, 10, 18, 26, 20, 24, 14, 20, 16],
+    video: '/demos/sound_effect.mp4',
     color: 'bg-primary-container text-on-primary-container',
-    accent: 'primary',
   },
   {
-    title: 'Studio Narration Pass',
-    description: 'Bright, expressive voice with rising-falling contour and soft onset. Full of surprise and delight, studio clarity.',
+    title: 'Speech Demo',
+    description: 'Expressive speech synthesis with natural prosody, controlled pacing, and studio-quality clarity from text input.',
     outputType: 'Speech',
-    duration: '00:06.0s',
     icon: Mic2,
     source: 'Text Prompt',
-    bars: [4, 10, 18, 28, 14, 22, 16, 24, 12, 18, 26, 16, 20, 8, 14, 10],
+    video: '/demos/speech.mp4',
     color: 'bg-secondary-container text-on-secondary-container',
-    accent: 'secondary',
   },
   {
-    title: 'Ethereal Score Bed',
-    description: 'Soft ambient pads with gentle piano arpeggios, slow tempo, airy texture. Evokes morning light across still water.',
+    title: 'Music Demo',
+    description: 'AI-composed musical score — ambient pads, melodic lines, and rhythmic beds tailored to scene context and mood.',
     outputType: 'Music',
-    duration: '00:15.0s',
     icon: Music4,
     source: 'Image + Text Prompt',
-    bars: [12, 16, 20, 24, 28, 26, 22, 18, 24, 28, 22, 16, 20, 24, 18, 14],
+    video: '/demos/music.mp4',
     color: 'bg-primary-container text-on-primary-container',
-    accent: 'primary',
   },
 ];
 
@@ -64,6 +56,62 @@ const pipelineSteps = [
   { step: '03', title: 'AI Planning', detail: 'The LLM decomposes your input into a structured audio event plan.' },
   { step: '04', title: 'Synthesize & Mix', detail: 'Domain experts generate each event via Tree-of-Thought refinement, then mix.' },
 ];
+
+function DemoCard({ demo, Icon }: { demo: typeof demos[number]; Icon: typeof demos[number]['icon'] }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [playing, setPlaying] = useState(false);
+
+  const togglePlay = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.paused) {
+      v.play();
+      setPlaying(true);
+    } else {
+      v.pause();
+      setPlaying(false);
+    }
+  };
+
+  return (
+    <article className="bg-white rounded-2xl border border-outline-variant/20 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+      <div className="relative bg-black aspect-video">
+        <video
+          ref={videoRef}
+          src={demo.video}
+          className="w-full h-full object-contain"
+          onEnded={() => setPlaying(false)}
+          playsInline
+        />
+        <div className="absolute top-4 left-4 flex items-center gap-2">
+          <div className={`w-7 h-7 rounded-lg ${demo.color} flex items-center justify-center`}>
+            <Icon size={14} />
+          </div>
+          <span className="text-[10px] uppercase tracking-widest font-bold text-white/80 drop-shadow">{demo.outputType}</span>
+        </div>
+      </div>
+
+      <div className="p-6 space-y-4">
+        <div className="space-y-2">
+          <h3 className="text-lg font-headline font-bold tracking-tight text-on-surface">{demo.title}</h3>
+          <p className="text-sm leading-relaxed text-on-surface-variant">{demo.description}</p>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4 text-[10px] uppercase tracking-widest text-outline">
+            <span className="flex items-center gap-1"><Volume2 size={10} /> {demo.source}</span>
+          </div>
+          <button
+            onClick={togglePlay}
+            className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-on-primary cursor-pointer hover:shadow-md hover:shadow-primary/25 transition-all"
+          >
+            {playing ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
 
 export function HomeView({ onStartCreating, onOpenHistory }: HomeViewProps) {
   const showcaseRef = useRef<HTMLElement | null>(null);
@@ -153,44 +201,7 @@ export function HomeView({ onStartCreating, onOpenHistory }: HomeViewProps) {
             const Icon = demo.icon;
 
             return (
-              <article
-                key={demo.title}
-                className="bg-white rounded-2xl border border-outline-variant/20 shadow-sm hover:shadow-md transition-shadow overflow-hidden"
-              >
-                {/* Waveform visualization */}
-                <div className="h-28 bg-surface-container-low px-6 py-4 flex items-end gap-[3px] relative">
-                  <div className="absolute top-4 left-6 flex items-center gap-2">
-                    <div className={`w-7 h-7 rounded-lg ${demo.color} flex items-center justify-center`}>
-                      <Icon size={14} />
-                    </div>
-                    <span className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">{demo.outputType}</span>
-                  </div>
-                  {demo.bars.map((bar, index) => (
-                    <div
-                      key={`${demo.title}-${index}`}
-                      className="flex-grow bg-primary/30 rounded-t-sm hover:bg-primary/50 transition-colors"
-                      style={{ height: `${bar * 2.2}px` }}
-                    ></div>
-                  ))}
-                </div>
-
-                <div className="p-6 space-y-4">
-                  <div className="space-y-2">
-                    <h3 className="text-lg font-headline font-bold tracking-tight text-on-surface">{demo.title}</h3>
-                    <p className="text-sm leading-relaxed text-on-surface-variant">{demo.description}</p>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 text-[10px] uppercase tracking-widest text-outline">
-                      <span className="flex items-center gap-1"><Clock size={10} /> {demo.duration}</span>
-                      <span className="flex items-center gap-1"><Volume2 size={10} /> {demo.source}</span>
-                    </div>
-                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-on-primary cursor-pointer hover:shadow-md hover:shadow-primary/25 transition-all">
-                      <Play size={14} className="ml-0.5" />
-                    </div>
-                  </div>
-                </div>
-              </article>
+              <DemoCard key={demo.title} demo={demo} Icon={Icon} />
             );
           })}
         </div>
