@@ -1,6 +1,6 @@
-import os, math
+import os, math, subprocess, shutil
 from typing import List, Dict, Any, Optional
-from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip
+from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip, ImageClip
 from pydub import AudioSegment
 
 
@@ -47,6 +47,7 @@ def _ensure_parent_dir(path: Optional[str]) -> None:
 def mix_and_maybe_mux(
     *,
     video_path: Optional[str],
+    image_path: Optional[str] = None,
     audio_segments: List[Dict],
     output_audio_path: str,
     output_video_path: Optional[str] = None
@@ -105,6 +106,15 @@ def mix_and_maybe_mux(
             final = v.with_audio(comp)
             final.duration = v.duration
             final.write_videofile(out_mp4, codec="libx264", audio_codec="aac")
+        result["video"] = out_mp4
+
+    elif image_path and os.path.exists(image_path):
+        out_mp4 = output_video_path or os.path.splitext(output_audio_path)[0] + ".mp4"
+        _ensure_parent_dir(out_mp4)
+        audio_clip = AudioFileClip(output_audio_path)
+        img_clip = ImageClip(image_path).with_duration(audio_clip.duration).with_audio(audio_clip)
+        img_clip.write_videofile(out_mp4, fps=1, codec="libx264", audio_codec="aac")
+        audio_clip.close()
         result["video"] = out_mp4
 
     return result

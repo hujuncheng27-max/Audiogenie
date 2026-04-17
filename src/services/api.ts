@@ -132,6 +132,13 @@ export async function exportGeneration(id: string, config: Pick<GenerationConfig
 }
 
 /**
+ * Returns the preview URL for in-browser playback of a completed generation.
+ */
+export function getPreviewUrl(id: string): string {
+  return `${API_BASE_URL}/generations/${id}/preview`;
+}
+
+/**
  * Polls for the status of a generation job.
  */
 export async function pollGenerationStatus(

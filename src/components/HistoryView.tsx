@@ -4,8 +4,9 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, CalendarClock, Download, HardDrive, Layers, Trash2, Waves } from 'lucide-react';
+import { Archive, CalendarClock, Download, HardDrive, Play, Trash2, Waves } from 'lucide-react';
 import { AppNotice, Artifact } from '../types';
+import { getPreviewUrl } from '../services/api';
 
 function formatTimestamp(value: string) {
   const date = new Date(value);
@@ -294,21 +295,41 @@ export function HistoryView({
                 <div className="xl:col-span-2 bg-background/40 rounded-xl p-6 border border-outline-variant/10">
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="font-label text-xs font-bold uppercase tracking-widest text-outline flex items-center gap-2">
-                      <Layers size={14} /> Waveform Snapshot
+                      <Play size={14} /> Preview
                     </h3>
                     <span className="text-[10px] bg-surface-container-highest px-2 py-1 rounded text-on-surface uppercase font-bold">
-                      Newest First
+                      {selectedArtifact?.runtimeMode === 'live' ? 'Live Result' : 'Preview'}
                     </span>
                   </div>
-                  <div className="h-56 w-full flex items-end gap-[3px]">
-                    {(selectedArtifact?.heights || []).map((height, index) => (
-                      <div
-                        key={`${selectedArtifact?.id || 'artifact'}-${index}`}
-                        className="flex-grow bg-primary/50 rounded-t-sm"
-                        style={{ height: `${Math.max(height * 6, 8)}px` }}
-                      ></div>
-                    ))}
-                  </div>
+                  {selectedArtifact && selectedArtifact.runtimeMode === 'live' ? (
+                    <div className="space-y-4">
+                      <video
+                        key={`video-${selectedArtifact.id}`}
+                        src={getPreviewUrl(selectedArtifact.id)}
+                        controls
+                        className="w-full rounded-lg bg-black"
+                        style={{ maxHeight: '280px' }}
+                        onError={(e) => {
+                          // If video fails (audio-only wav), hide video and show audio
+                          const target = e.currentTarget;
+                          target.style.display = 'none';
+                          const audioEl = target.nextElementSibling as HTMLAudioElement | null;
+                          if (audioEl) audioEl.style.display = 'block';
+                        }}
+                      />
+                      <audio
+                        key={`audio-${selectedArtifact.id}`}
+                        src={getPreviewUrl(selectedArtifact.id)}
+                        controls
+                        className="w-full"
+                        style={{ display: 'none' }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-56 w-full flex items-center justify-center text-outline">
+                      <p className="text-sm uppercase tracking-widest">No preview available</p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-4">

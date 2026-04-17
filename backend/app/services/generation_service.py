@@ -449,6 +449,7 @@ class GenerationService:
                 try:
                     mixed = mix_and_maybe_mux(
                         video_path=ctx.get("video"),
+                        image_path=ctx.get("image"),
                         audio_segments=audio_segments,
                         output_audio_path=final_wav,
                         output_video_path=final_mp4,

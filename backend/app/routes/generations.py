@@ -103,6 +103,26 @@ async def export_generation(
     return ExportResponse(url=_make_export_url())
 
 
+@router.get("/{id}/preview", name="preview_media")
+async def preview_media(id: str):
+    """Serve the generated media for in-browser playback (no Content-Disposition: attachment)."""
+    job = generation_service.get_job(id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Generation not found")
+    if job.status != GenerationStatus.COMPLETED or not job.artifact:
+        raise HTTPException(status_code=409, detail="Generation is not ready for preview")
+
+    video_output = generation_service.get_video_output_path(id)
+    if video_output and os.path.exists(video_output):
+        return FileResponse(path=video_output, media_type="video/mp4")
+
+    audio_path = generation_service.get_audio_path(id)
+    if audio_path and os.path.exists(audio_path):
+        return FileResponse(path=audio_path, media_type="audio/wav")
+
+    raise HTTPException(status_code=404, detail="No media file found for this generation")
+
+
 @router.get("/{id}/export/download", name="download_export")
 async def download_export(
     id: str,
@@ -117,7 +137,17 @@ async def download_export(
     if job.status != GenerationStatus.COMPLETED or not job.artifact:
         raise HTTPException(status_code=409, detail="Generation is not ready for export")
 
-    # Serve real generated audio file if available
+    # Serve video (image+audio or video+audio) if available, otherwise audio only
+    video_output = generation_service.get_video_output_path(id)
+    if video_output and os.path.exists(video_output):
+        filename = f"{id}.mp4"
+        return FileResponse(
+            path=video_output,
+            media_type="video/mp4",
+            filename=filename,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
     audio_path = generation_service.get_audio_path(id)
     if audio_path and os.path.exists(audio_path):
         filename = f"{id}.wav"
