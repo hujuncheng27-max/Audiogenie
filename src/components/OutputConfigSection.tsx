@@ -7,15 +7,15 @@ import React from 'react';
 import { Settings2 } from 'lucide-react';
 
 interface OutputConfigSectionProps {
-  outputClass: string;
-  setOutputClass: (c: string) => void;
+  outputClasses: string[];
+  setOutputClasses: (c: string[]) => void;
   duration: number;
   setDuration: (d: number) => void;
 }
 
 export function OutputConfigSection({
-  outputClass,
-  setOutputClass,
+  outputClasses,
+  setOutputClasses,
   duration,
   setDuration,
 }: OutputConfigSectionProps) {
@@ -25,6 +25,17 @@ export function OutputConfigSection({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.00s`;
   };
 
+  const toggleClass = (cls: string) => {
+    if (outputClasses.includes(cls)) {
+      // Don't allow deselecting the last one
+      if (outputClasses.length > 1) {
+        setOutputClasses(outputClasses.filter((c) => c !== cls));
+      }
+    } else {
+      setOutputClasses([...outputClasses, cls]);
+    }
+  };
+
   return (
     <div className="bg-surface-container-lowest p-6 rounded-xl flex flex-col gap-6">
       <h2 className="font-label text-xs font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
@@ -32,13 +43,13 @@ export function OutputConfigSection({
       </h2>
 
       <div className="flex flex-col gap-3">
-        <label className="font-label text-[10px] uppercase tracking-widest text-outline">Output Class</label>
+        <label className="font-label text-[10px] uppercase tracking-widest text-outline">Output Class (multi-select)</label>
         <div className="grid grid-cols-2 gap-2">
           {['Sound Effects', 'Speech', 'Music', 'Atmosphere'].map((cls) => (
             <button
               key={cls}
-              onClick={() => setOutputClass(cls)}
-              className={`${outputClass === cls ? 'bg-primary text-on-primary' : 'bg-surface-container-highest text-on-surface hover:bg-surface-container-high'} text-[11px] font-bold py-3 rounded uppercase tracking-tighter transition-colors`}
+              onClick={() => toggleClass(cls)}
+              className={`${outputClasses.includes(cls) ? 'bg-primary text-on-primary' : 'bg-surface-container-highest text-on-surface hover:bg-surface-container-high'} text-[11px] font-bold py-3 rounded uppercase tracking-tighter transition-colors`}
             >
               {cls}
             </button>

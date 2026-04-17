@@ -131,10 +131,18 @@ class GenerationTeam:
 
         hint_lines = []
         if output_class:
-            hint_lines.append(
-                f"- Preferred audio category: {output_class}. Bias the plan strongly toward this category; "
-                f"only include other categories if they are essential support."
-            )
+            classes = [c.strip() for c in output_class.split(",") if c.strip()]
+            if len(classes) == 1:
+                hint_lines.append(
+                    f"- Preferred audio category: {classes[0]}. Bias the plan strongly toward this category; "
+                    f"only include other categories if they are essential support."
+                )
+            else:
+                hint_lines.append(
+                    f"- Preferred audio categories: {', '.join(classes)}. "
+                    f"The plan should include events from ALL of these categories. "
+                    f"Do not include categories outside this list unless essential."
+                )
         if target_duration:
             hint_lines.append(
                 f"- Target total duration: {target_duration} seconds. Keep every event inside [0, {target_duration}]."

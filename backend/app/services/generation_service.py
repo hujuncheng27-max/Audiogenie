@@ -57,7 +57,15 @@ def _enforce_user_constraints(
     """
     allow: Optional[set] = None
     if output_class:
-        allow = _OUTPUT_CLASS_ALLOWLIST.get(output_class.strip().lower())
+        # Support comma-separated multi-select: "Sound Effects,Music" → union of allowlists
+        parts = [p.strip().lower() for p in output_class.split(",") if p.strip()]
+        combined: set = set()
+        for p in parts:
+            subset = _OUTPUT_CLASS_ALLOWLIST.get(p)
+            if subset:
+                combined |= subset
+        if combined:
+            allow = combined
 
     target = float(target_duration) if target_duration else None
 
@@ -84,7 +92,8 @@ def _enforce_user_constraints(
             "song":          "song",
             "atmosphere":    "sound_effect",
         }
-        preferred = _canonical.get((output_class or "").strip().lower(), "sound_effect")
+        first_class = parts[0] if parts else "sound_effect"
+        preferred = _canonical.get(first_class, "sound_effect")
         desc = (prompt or "").strip() or f"{output_class or 'audio'} track"
         kept = [
             AudioEvent(

@@ -30,7 +30,7 @@ export function Workspace({
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [prompt, setPrompt] = useState("");
-  const [outputClass, setOutputClass] = useState("Sound Effects");
+  const [outputClasses, setOutputClasses] = useState<string[]>(["Sound Effects"]);
   const [duration, setDuration] = useState(12);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -39,7 +39,7 @@ export function Workspace({
     try {
       const request: GenerationDraft = {
         prompt,
-        outputClass,
+        outputClass: outputClasses.join(','),
         languageModel: '',
         acousticStyle: '',
         duration,
@@ -77,8 +77,8 @@ export function Workspace({
               setPrompt={setPrompt}
             />
             <OutputConfigSection
-              outputClass={outputClass}
-              setOutputClass={setOutputClass}
+              outputClasses={outputClasses}
+              setOutputClasses={setOutputClasses}
               duration={duration}
               setDuration={setDuration}
             />
@@ -91,7 +91,7 @@ export function Workspace({
             prompt={prompt}
             videoFile={videoFile}
             imageFile={imageFile}
-            outputClass={outputClass}
+            outputClass={outputClasses.join(', ')}
             onGenerate={handleGenerateClick}
             isProcessing={isSubmitting}
           />
