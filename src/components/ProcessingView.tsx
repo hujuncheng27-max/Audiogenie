@@ -214,7 +214,7 @@ export function ProcessingView({ activeGeneration }: ProcessingViewProps) {
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="font-label text-[10px] text-outline uppercase">Target Model</dt>
-                <dd className="font-body text-xs text-on-surface font-medium text-right">{activeGeneration?.payload.languageModel || 'Genie-V3-Pro'}</dd>
+                <dd className="font-body text-xs text-on-surface font-medium text-right">{activeGeneration?.payload.languageModel || 'Kimi-K2.5'}</dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="font-label text-[10px] text-outline uppercase">Output Profile</dt>

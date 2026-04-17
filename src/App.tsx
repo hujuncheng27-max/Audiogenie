@@ -49,7 +49,7 @@ function describeError(error: unknown): string {
   return 'Unknown error';
 }
 
-const NOTICE_TIMEOUT_MS = 5200;
+const NOTICE_TIMEOUT_MS = 15000;
 
 export default function App() {
   const [view, setView] = useState<View>('home');
