@@ -18,6 +18,7 @@ def main():
     parser.add_argument("--text", default=None)
     parser.add_argument("--image", default=None)
     parser.add_argument("--video", default=None, help="Path to .mp4 video file.")
+    parser.add_argument("--prompt_wav_path", default=None, help="Optional prompt wav path for speech cloning.")
     parser.add_argument("--outdir", default="/hpc2hdd/home/yrong854/jhaidata/Agent/outputs_gemini/bird_sea")
     parser.add_argument("--llm", default="kimi")
     parser.add_argument("--max_depth", type=int, default=3)
@@ -35,6 +36,7 @@ def main():
         "text": args.text,
         "image": args.image,
         "video": args.video if args.video not in ("None", "none", "") else None,
+        "prompt_wav_path": args.prompt_wav_path if args.prompt_wav_path not in ("None", "none", "") else None,
     }
 
     try:

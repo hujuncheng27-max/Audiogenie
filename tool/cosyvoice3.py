@@ -41,6 +41,26 @@ class CosyVoice3Tool(GradioTool):
 		from gradio_client import handle_file
 		return handle_file(prompt_wav)
 
+	def recognize_prompt_wav(self, prompt_wav: str) -> str:
+		"""Recognize transcript text from a prompt wav via `/prompt_wav_recognition`."""
+		if not prompt_wav:
+			raise self._tool_error("Missing required argument: prompt_wav")
+
+		started = self._log_start(
+			{"prompt_wav": prompt_wav, "api_name": "/prompt_wav_recognition"},
+			output_wav=None,
+		)
+		result = self._predict(
+			prompt_wav=self._prompt_wav_upload(prompt_wav),
+			api_name="/prompt_wav_recognition",
+		)
+		transcript = result[0] if isinstance(result, (list, tuple)) else result
+		transcript = str(transcript or "").strip()
+		if not transcript:
+			raise self._tool_error("Prompt wav recognition returned an empty transcript.")
+		self._log_success(started, transcript)
+		return transcript
+
 	def run(self, args: Dict[str, Any], output_wav: Optional[str] = None) -> str:
 		"""Map project-side TTS args to CosyVoice3's /generate_audio API."""
 		args = dict(args or {})

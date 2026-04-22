@@ -193,6 +193,8 @@ class GenerationTeam:
             "video_seconds": probe_video_seconds((plan_ctx or {}).get("video")) if (plan_ctx or {}).get("video") else None,
             "text": (plan_ctx or {}).get("text"),
             "image": (plan_ctx or {}).get("image"),
+            "prompt_wav_path": (plan_ctx or {}).get("prompt_wav_path"),
+            "prompt_transcript": (plan_ctx or {}).get("prompt_transcript"),
             "__outdir__": outdir,
         }
 

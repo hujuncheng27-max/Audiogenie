@@ -344,6 +344,44 @@ class SpeechExpert(BaseExpert):
     """
     Speech expert
     """
+    DEFAULT_PROMPT_TRANSCRIPT = "希望你以后能够做的比我还好呦。"
+    DEFAULT_PROMPT_WAV = "bin/zero_shot_prompt.wav"
+
+    def _recognize_prompt_transcript(self, prompt_wav_path: str) -> str:
+        if not prompt_wav_path or not os.path.exists(prompt_wav_path):
+            return ""
+
+        for tool_name in self._tools_for_tasks("tts", "speech", "voice"):
+            if "cosyvoice3" not in tool_name.lower():
+                continue
+            try:
+                runtime = getattr(self.tool_lib.get(tool_name), "runtime", None)
+                if runtime is None or not hasattr(runtime, "recognize_prompt_wav"):
+                    continue
+                transcript = str(runtime.recognize_prompt_wav(prompt_wav_path) or "").strip()
+                if transcript:
+                    return transcript
+            except Exception:
+                continue
+        return ""
+
+    def _resolve_prompt_reference(self, plan_ctx: Dict[str, Any]) -> tuple[str, str]:
+        prompt_wav_path = str((plan_ctx or {}).get("prompt_wav_path") or "").strip()
+        prompt_transcript = str((plan_ctx or {}).get("prompt_transcript") or "").strip()
+
+        if prompt_wav_path and os.path.exists(prompt_wav_path):
+            if not prompt_transcript:
+                cache_key = "__recognized_prompt_transcript__"
+                prompt_transcript = str((plan_ctx or {}).get(cache_key) or "").strip()
+                if not prompt_transcript:
+                    prompt_transcript = self._recognize_prompt_transcript(prompt_wav_path)
+                    if prompt_transcript:
+                        plan_ctx[cache_key] = prompt_transcript
+                        plan_ctx["prompt_transcript"] = prompt_transcript
+            return prompt_wav_path, (prompt_transcript or self.DEFAULT_PROMPT_TRANSCRIPT)
+
+        return self.DEFAULT_PROMPT_WAV, (prompt_transcript or self.DEFAULT_PROMPT_TRANSCRIPT)
+
     def process_batch(self, events: List[AudioEvent], plan_ctx: Dict[str, Any], llm: LLM) -> List[AudioEvent]:
         if not events:
             return []
@@ -371,6 +409,7 @@ class SpeechExpert(BaseExpert):
             idx_map = {}
 
         out: List[AudioEvent] = []
+        prompt_wav, prompt_transcript = self._resolve_prompt_reference(plan_ctx)
         for i,e in enumerate(events):
             it = idx_map.get(i, {})
             utter = it.get("utterance") or _extract_quoted(e.object) or _extract_quoted(e.description) or (e.description or e.object or "...")
@@ -383,14 +422,14 @@ class SpeechExpert(BaseExpert):
                 if "cosyvoice3" in lname:
                     e.refined_inputs[model_name] = {
                         "target_text": utter,
-                        "prompt_text": plan_ctx.get("prompt_transcript", "希望你以后能够做的比我还好呦。"),
-                        "prompt_wav": plan_ctx.get("prompt_wav_path", "bin/zero_shot_prompt.wav")
+                        "prompt_text": prompt_transcript,
+                        "prompt_wav": prompt_wav
                     }
                 elif "cosyvoice2" in lname:
                     e.refined_inputs[model_name] = {
                         "text": utter,
-                        "prompt_transcript": plan_ctx.get("prompt_transcript", "希望你以后能够做的比我还好呦。"),
-                        "prompt_wav": plan_ctx.get("prompt_wav_path", "bin/zero_shot_prompt.wav"),
+                        "prompt_transcript": prompt_transcript,
+                        "prompt_wav": prompt_wav,
                         "instruct_text": style,
                     }
                 elif "firered" in lname:
