@@ -10,3 +10,10 @@ coverage/
 *.db-wal
 *.db-shm
 __pycache__/
+
+*.mp4
+*.mp3
+*.wav
+config.yaml
+*.json
+*.lrc
