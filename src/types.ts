@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type View = 'home' | 'workspace' | 'processing' | 'history' | 'docs';
+export type View = 'home' | 'workspace' | 'processing' | 'history';
 
 export type SourceType = 'video' | 'image' | 'video+image' | 'text';
 export type QualityMode = 'fast' | 'balanced' | 'high-quality';
@@ -93,6 +93,8 @@ export interface GenerationResponse {
   id: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   artifact?: Artifact;
+  stage?: 'uploading' | 'planning' | 'assigning' | 'synthesizing' | 'mixing' | 'done';
+  stageDetail?: string;
 }
 
 export interface ActiveGeneration {
@@ -101,6 +103,8 @@ export interface ActiveGeneration {
   payload: GenerationPayload;
   runtimeMode: RuntimeMode;
   statusMessage?: string;
+  stage?: GenerationResponse['stage'];
+  stageDetail?: string;
 }
 
 export interface AppNotice {

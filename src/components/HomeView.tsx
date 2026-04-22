@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useRef } from 'react';
-import { ArrowRight, Clapperboard, Image as ImageIcon, Mic2, Music4, Sparkles } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { ArrowRight, Clapperboard, Image as ImageIcon, Mic2, Music4, Sparkles, Play, Pause, Clock, Volume2 } from 'lucide-react';
 
 interface HomeViewProps {
   onStartCreating: () => void;
@@ -13,49 +13,117 @@ interface HomeViewProps {
 
 const demos = [
   {
-    title: 'Video to cinematic sound effects',
-    description: 'Upload action footage and generate tightly timed impacts, movement layers, and cinematic transitions.',
-    outputType: 'Sound Effects',
-    duration: '00:18.0s',
-    icon: Clapperboard,
-    bars: [14, 24, 18, 12, 22, 30, 28, 16, 10, 18, 26, 20],
-  },
-  {
-    title: 'Image to ambient atmosphere',
-    description: 'Turn a still frame into evolving ambience, weather layers, distant textures, and room tone.',
+    title: 'Atmosphere Demo',
+    description: 'Ambient soundscape generation — environmental layers, atmospheric pads, and natural textures driven by multimodal input.',
     outputType: 'Atmosphere',
-    duration: '01:12.0s',
     icon: ImageIcon,
-    bars: [6, 8, 10, 14, 12, 18, 22, 18, 14, 10, 8, 6],
+    source: 'Video + Text Prompt',
+    video: '/demos/atmosphere.mp4',
+    color: 'bg-tertiary-container text-on-tertiary-container',
   },
   {
-    title: 'Text prompt to speech narration',
-    description: 'Describe the voice, pacing, and tone to produce a stylized narration pass from text only.',
+    title: 'Sound Effects Demo',
+    description: 'Precisely timed foley and sound effects synchronized to video events — impacts, movements, and environmental cues.',
+    outputType: 'Sound Effects',
+    icon: Clapperboard,
+    source: 'Video Upload',
+    video: '/demos/sound_effect.mp4',
+    color: 'bg-primary-container text-on-primary-container',
+  },
+  {
+    title: 'Speech Demo',
+    description: 'Expressive speech synthesis with natural prosody, controlled pacing, and studio-quality clarity from text input.',
     outputType: 'Speech',
-    duration: '00:24.0s',
     icon: Mic2,
-    bars: [10, 18, 28, 12, 16, 24, 14, 22, 12, 18, 26, 16],
+    source: 'Text Prompt',
+    video: '/demos/speech.mp4',
+    color: 'bg-secondary-container text-on-secondary-container',
   },
   {
-    title: 'Text prompt to background music',
-    description: 'Prototype score beds, emotional themes, and loopable musical layers directly from a prompt.',
+    title: 'Music Demo',
+    description: 'AI-composed musical score — ambient pads, melodic lines, and rhythmic beds tailored to scene context and mood.',
     outputType: 'Music',
-    duration: '00:45.0s',
     icon: Music4,
-    bars: [12, 16, 20, 24, 30, 26, 22, 18, 24, 28, 20, 14],
+    source: 'Image + Text Prompt',
+    video: '/demos/music.mp4',
+    color: 'bg-primary-container text-on-primary-container',
   },
 ];
 
-export function HomeView({ onStartCreating, onOpenHistory }: HomeViewProps) {
-  const examplesRef = useRef<HTMLElement | null>(null);
+const pipelineSteps = [
+  { step: '01', title: 'Upload or Describe', detail: 'Provide a video, image, or text prompt as your source material.' },
+  { step: '02', title: 'Configure Output', detail: 'Select audio category (SFX / Speech / Music / Atmosphere) and target duration.' },
+  { step: '03', title: 'AI Planning', detail: 'The LLM decomposes your input into a structured audio event plan.' },
+  { step: '04', title: 'Synthesize & Mix', detail: 'Domain experts generate each event via Tree-of-Thought refinement, then mix.' },
+];
+
+function DemoCard({ demo, Icon }: { demo: typeof demos[number]; Icon: typeof demos[number]['icon'] }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [playing, setPlaying] = useState(false);
+
+  const togglePlay = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.paused) {
+      v.play();
+      setPlaying(true);
+    } else {
+      v.pause();
+      setPlaying(false);
+    }
+  };
 
   return (
-    <div className="p-8 md:p-12 max-w-[1600px] mx-auto w-full space-y-16">
+    <article className="bg-white rounded-2xl border border-outline-variant/20 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+      <div className="relative bg-black aspect-video">
+        <video
+          ref={videoRef}
+          src={demo.video}
+          className="w-full h-full object-contain"
+          onEnded={() => setPlaying(false)}
+          playsInline
+        />
+        <div className="absolute top-4 left-4 flex items-center gap-2">
+          <div className={`w-7 h-7 rounded-lg ${demo.color} flex items-center justify-center`}>
+            <Icon size={14} />
+          </div>
+          <span className="text-[10px] uppercase tracking-widest font-bold text-white/80 drop-shadow">{demo.outputType}</span>
+        </div>
+      </div>
+
+      <div className="p-6 space-y-4">
+        <div className="space-y-2">
+          <h3 className="text-lg font-headline font-bold tracking-tight text-on-surface">{demo.title}</h3>
+          <p className="text-sm leading-relaxed text-on-surface-variant">{demo.description}</p>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4 text-[10px] uppercase tracking-widest text-outline">
+            <span className="flex items-center gap-1"><Volume2 size={10} /> {demo.source}</span>
+          </div>
+          <button
+            onClick={togglePlay}
+            className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-on-primary cursor-pointer hover:shadow-md hover:shadow-primary/25 transition-all"
+          >
+            {playing ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+export function HomeView({ onStartCreating, onOpenHistory }: HomeViewProps) {
+  const showcaseRef = useRef<HTMLElement | null>(null);
+
+  return (
+    <div className="p-8 md:p-12 max-w-[1600px] mx-auto w-full space-y-20">
+      {/* Hero */}
       <section className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-stretch">
-        <div className="xl:col-span-7 bg-surface-container-lowest border border-outline-variant/10 rounded-3xl p-8 md:p-12 shadow-2xl relative overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(194,170,255,0.18),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(255,170,95,0.12),transparent_30%)] pointer-events-none"></div>
+        <div className="xl:col-span-7 bg-white border border-outline-variant/30 rounded-3xl p-8 md:p-12 shadow-lg relative overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(103,80,164,0.08),transparent_40%),radial-gradient(circle_at_bottom_left,rgba(125,82,96,0.06),transparent_35%)] pointer-events-none"></div>
           <div className="relative space-y-8">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary-container text-on-primary-container text-[10px] font-bold uppercase tracking-widest">
               <Sparkles size={12} /> AI Audio Generation Studio
             </div>
             <div className="space-y-5 max-w-3xl">
@@ -63,51 +131,53 @@ export function HomeView({ onStartCreating, onOpenHistory }: HomeViewProps) {
                 Shape sound from video, images, and text.
               </h1>
               <p className="text-base md:text-lg leading-relaxed text-on-surface-variant max-w-2xl">
-                AudioGenie is an AI audio generation studio for speech, music, sound effects, and atmospheric layers.
-                Upload a video, drop in an image, or write a prompt to build polished audio outputs in one workspace.
+                DubMaster is a multi-agent AI studio that generates speech, music, sound effects, and
+                atmospheric layers. Upload a video, drop in an image, or write a prompt to build polished
+                audio in one workspace.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-4">
               <button
                 onClick={onStartCreating}
-                className="bg-primary text-on-primary px-8 py-4 rounded-lg font-bold uppercase tracking-widest text-xs hover:bg-primary-container transition-all flex items-center justify-center gap-2"
+                className="bg-primary text-on-primary px-8 py-4 rounded-xl font-bold uppercase tracking-widest text-xs hover:shadow-lg hover:shadow-primary/20 transition-all flex items-center justify-center gap-2"
               >
                 Start Creating <ArrowRight size={16} />
               </button>
               <button
-                onClick={() => examplesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                className="bg-surface-container-high text-on-surface px-8 py-4 rounded-lg font-bold uppercase tracking-widest text-xs hover:bg-surface-container transition-all"
+                onClick={() => showcaseRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className="bg-surface-container-high text-on-surface px-8 py-4 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-surface-container-highest transition-all"
               >
-                View Examples
+                View Demos
               </button>
             </div>
           </div>
         </div>
 
         <div className="xl:col-span-5 grid grid-cols-1 gap-6">
-          <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10">
-            <p className="text-[10px] uppercase tracking-widest text-outline mb-3">How It Works</p>
-            <div className="space-y-4">
-              {[
-                '1. Upload or describe your source',
-                '2. Configure output class and sonic style',
-                '3. Generate, inspect, and export the result',
-              ].map((step) => (
-                <div key={step} className="bg-surface-container-lowest rounded-xl px-4 py-4 text-sm text-on-surface-variant">
-                  {step}
+          <div className="bg-white rounded-2xl p-6 border border-outline-variant/20 shadow-sm">
+            <p className="text-[10px] uppercase tracking-widest text-outline font-bold mb-4">How It Works</p>
+            <div className="space-y-3">
+              {pipelineSteps.map((s) => (
+                <div key={s.step} className="flex gap-4 items-start bg-surface-container-low rounded-xl px-4 py-3.5">
+                  <span className="text-primary font-mono text-xs font-bold mt-0.5">{s.step}</span>
+                  <div>
+                    <p className="text-sm font-semibold text-on-surface">{s.title}</p>
+                    <p className="text-xs text-on-surface-variant mt-0.5 leading-relaxed">{s.detail}</p>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="bg-surface-container rounded-2xl p-6 border border-outline-variant/10">
-            <p className="text-[10px] uppercase tracking-widest text-outline mb-4">No Account Required</p>
+          <div className="bg-white rounded-2xl p-6 border border-outline-variant/20 shadow-sm">
+            <p className="text-[10px] uppercase tracking-widest text-outline font-bold mb-3">Quick Start</p>
             <p className="text-sm leading-relaxed text-on-surface-variant">
-              Open the site, create outputs, and keep your history on this browser and device. You can browse local history now and swap in backend persistence later.
+              No account required. Open the workspace, configure your generation,
+              and export the result. All history stays on this browser.
             </p>
             <button
               onClick={onOpenHistory}
-              className="mt-5 text-[10px] uppercase tracking-widest font-bold text-primary hover:underline"
+              className="mt-4 text-[10px] uppercase tracking-widest font-bold text-primary hover:underline"
             >
               Open Local History
             </button>
@@ -115,14 +185,15 @@ export function HomeView({ onStartCreating, onOpenHistory }: HomeViewProps) {
         </div>
       </section>
 
-      <section ref={examplesRef} className="space-y-6">
-        <div className="flex justify-between items-end border-b border-outline-variant/20 pb-4">
-          <div>
-            <h2 className="font-headline text-2xl md:text-3xl font-bold uppercase tracking-tight text-on-surface">Examples</h2>
-            <p className="text-sm text-on-surface-variant mt-2">
-              A few sample workflows you can create inside the current AudioGenie studio.
-            </p>
-          </div>
+      {/* Demo Showcase */}
+      <section ref={showcaseRef} className="space-y-8">
+        <div className="border-b border-outline-variant/30 pb-4">
+          <h2 className="font-headline text-2xl md:text-3xl font-bold uppercase tracking-tight text-on-surface">
+            Featured Demos
+          </h2>
+          <p className="text-sm text-on-surface-variant mt-2">
+            Sample outputs generated by DubMaster from different input types and output categories.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -130,28 +201,19 @@ export function HomeView({ onStartCreating, onOpenHistory }: HomeViewProps) {
             const Icon = demo.icon;
 
             return (
-              <article key={demo.title} className="bg-surface-container-low rounded-2xl border border-outline-variant/10 p-6 space-y-5">
-                <div className="flex justify-between items-start gap-4">
-                  <div className="space-y-2">
-                    <div className="w-11 h-11 rounded-xl bg-surface-container-highest flex items-center justify-center text-primary">
-                      <Icon size={20} />
-                    </div>
-                    <h3 className="text-lg font-headline font-bold uppercase tracking-tight text-on-surface">{demo.title}</h3>
-                    <p className="text-sm leading-relaxed text-on-surface-variant">{demo.description}</p>
-                  </div>
-                </div>
-                <div className="h-24 bg-background/50 rounded-xl border border-outline-variant/10 px-4 py-3 flex items-end gap-[3px]">
-                  {demo.bars.map((bar, index) => (
-                    <div key={`${demo.title}-${index}`} className="flex-grow bg-primary/45 rounded-t-sm" style={{ height: `${bar * 2}px` }}></div>
-                  ))}
-                </div>
-                <div className="flex justify-between items-center text-[10px] uppercase tracking-widest">
-                  <span className="text-outline">{demo.outputType}</span>
-                  <span className="text-primary font-bold">{demo.duration}</span>
-                </div>
-              </article>
+              <DemoCard key={demo.title} demo={demo} Icon={Icon} />
             );
           })}
+        </div>
+
+        {/* CTA */}
+        <div className="flex justify-center pt-4">
+          <button
+            onClick={onStartCreating}
+            className="bg-primary-container text-on-primary-container px-10 py-4 rounded-xl font-bold uppercase tracking-widest text-xs hover:shadow-lg hover:shadow-primary/15 transition-all flex items-center gap-2"
+          >
+            Try It Yourself <ArrowRight size={16} />
+          </button>
         </div>
       </section>
     </div>

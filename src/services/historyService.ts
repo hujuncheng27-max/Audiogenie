@@ -7,7 +7,7 @@ import {
   SourceType,
 } from '../types';
 
-const HISTORY_STORAGE_KEY = 'audiogenie.history.v1';
+const HISTORY_STORAGE_KEY = 'dubmaster.history.v1';
 
 function isBrowser() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';

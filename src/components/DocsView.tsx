@@ -16,8 +16,8 @@ const architectureItems = [
 ] as const;
 
 const runSteps = [
-  'Open one terminal in Audiogenie/ and run npm run dev:backend',
-  'Open a second terminal in Audiogenie/ and run npm run dev:frontend',
+  'Open one terminal in DubMaster/ and run npm run dev:backend',
+  'Open a second terminal in DubMaster/ and run npm run dev:frontend',
   'Visit http://localhost:3000 in the browser',
   'Generate, inspect history, and export a WAV to verify the full stack flow',
 ];

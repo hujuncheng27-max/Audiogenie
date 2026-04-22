@@ -12,43 +12,60 @@ interface ProcessingViewProps {
   activeGeneration: ActiveGeneration | null;
 }
 
-function getProgress(status: ActiveGeneration['status'] | undefined) {
-  switch (status) {
-    case 'pending':
-      return 24;
-    case 'processing':
-      return 68;
-    case 'completed':
-      return 100;
-    case 'failed':
-      return 100;
-    default:
-      return 12;
+function getProgress(status: ActiveGeneration['status'] | undefined, stage?: ActiveGeneration['stage']) {
+  if (status === 'completed') return 100;
+  if (status === 'failed') return 100;
+  if (!stage) {
+    return status === 'pending' ? 8 : status === 'processing' ? 50 : 5;
+  }
+  switch (stage) {
+    case 'uploading': return 5;
+    case 'planning': return 20;
+    case 'assigning': return 40;
+    case 'synthesizing': return 65;
+    case 'mixing': return 88;
+    case 'done': return 100;
+    default: return 10;
   }
 }
 
-function getStatusLabel(status: ActiveGeneration['status'] | undefined) {
-  switch (status) {
-    case 'pending':
-      return 'Queueing';
-    case 'processing':
-      return 'Synthesis Active';
-    case 'completed':
-      return 'Completed';
-    case 'failed':
-      return 'Failed';
-    default:
-      return 'Initializing';
+function getStatusLabel(status: ActiveGeneration['status'] | undefined, stage?: ActiveGeneration['stage']) {
+  if (status === 'completed') return 'Completed';
+  if (status === 'failed') return 'Failed';
+  if (!stage) {
+    return status === 'pending' ? 'Queueing' : 'Processing';
+  }
+  switch (stage) {
+    case 'uploading': return 'Preparing Inputs';
+    case 'planning': return 'Stage 1 — Planning';
+    case 'assigning': return 'Stage 2 — Expert Routing';
+    case 'synthesizing': return 'Stage 3 — Synthesis';
+    case 'mixing': return 'Mixing';
+    case 'done': return 'Completed';
+    default: return 'Processing';
+  }
+}
+
+function getStageIndex(stage?: ActiveGeneration['stage']): number {
+  switch (stage) {
+    case 'planning': return 1;
+    case 'assigning': return 2;
+    case 'synthesizing': return 3;
+    case 'mixing': return 3;
+    case 'done': return 4;
+    default: return 0;
   }
 }
 
 export function ProcessingView({ activeGeneration }: ProcessingViewProps) {
   const status = activeGeneration?.status;
-  const progress = getProgress(status);
-  const statusLabel = getStatusLabel(status);
-  const isPending = status === 'pending';
-  const isProcessing = status === 'processing';
-  const isCompleted = status === 'completed';
+  const stage = activeGeneration?.stage;
+  const stageIdx = getStageIndex(stage);
+  const progress = getProgress(status, stage);
+  const statusLabel = getStatusLabel(status, stage);
+  const isPending = status === 'pending' || stageIdx < 1;
+  const isProcessing = status === 'processing' && stageIdx >= 1 && stageIdx < 4;
+  const isCompleted = status === 'completed' || stageIdx >= 4;
   const promptPreview = activeGeneration?.payload.prompt?.trim() || 'No prompt supplied';
   const config = activeGeneration?.payload.config;
   const inputSource = activeGeneration?.payload.videoFileName
@@ -57,7 +74,7 @@ export function ProcessingView({ activeGeneration }: ProcessingViewProps) {
       ? `Image: ${activeGeneration.payload.imageFileName}`
       : 'Prompt only';
   const runtimeModeLabel = activeGeneration?.runtimeMode === 'demo' ? 'Demo Preview' : 'Live Backend';
-  const statusMessage = activeGeneration?.statusMessage || 'Preparing AudioGenie generation pipeline.';
+  const statusMessage = activeGeneration?.statusMessage || 'Preparing DubMaster generation pipeline.';
 
   return (
     <div className="p-8 md:p-12 max-w-7xl mx-auto w-full space-y-12">
@@ -85,44 +102,64 @@ export function ProcessingView({ activeGeneration }: ProcessingViewProps) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-8">
           <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className={`bg-surface-container p-6 rounded-lg border-l-2 ${!isPending ? 'border-primary/20' : 'border-primary'}`}>
-              <div className="flex justify-between items-start mb-4">
-                {isPending ? <RefreshCw size={20} className="text-primary animate-spin" /> : <CheckCircle2 size={20} className="text-primary fill-primary/20" />}
-                <span className={`font-label text-[10px] uppercase tracking-wider ${isPending ? 'text-primary' : 'text-outline'}`}>Stage 01</span>
-              </div>
-              <h3 className="font-headline font-bold text-sm uppercase text-on-surface mb-2">Task Decomposition</h3>
-              <p className="font-body text-xs text-on-surface-variant leading-relaxed">Analyzing spectral density and temporal markers for atomic routing.</p>
-            </div>
+            {(() => {
+              const s1Active = stage === 'planning';
+              const s1Done = stageIdx > 1;
+              const s2Active = stage === 'assigning';
+              const s2Done = stageIdx > 2;
+              const s3Active = stage === 'synthesizing' || stage === 'mixing';
+              const s3Done = stageIdx >= 4;
+              return (
+                <>
+                  <div className={`bg-surface-container p-6 rounded-lg border-l-2 ${s1Active ? 'border-primary' : s1Done ? 'border-primary/20' : 'border-outline-variant/40'}`}>
+                    {s1Active && <div className="absolute top-0 right-0 p-2"><div className="w-2 h-2 rounded-full bg-primary animate-ping"></div></div>}
+                    <div className="flex justify-between items-start mb-4">
+                      {s1Active ? <RefreshCw size={20} className="text-primary animate-spin" /> : s1Done ? <CheckCircle2 size={20} className="text-primary fill-primary/20" /> : <Hourglass size={20} className="text-outline" />}
+                      <span className={`font-label text-[10px] uppercase tracking-wider ${s1Active ? 'text-primary' : 'text-outline'}`}>{s1Active ? 'Active' : 'Stage 01'}</span>
+                    </div>
+                    <h3 className="font-headline font-bold text-sm uppercase text-on-surface mb-2">Planning</h3>
+                    <p className="font-body text-xs text-on-surface-variant leading-relaxed">LLM analyzes multimodal inputs and identifies audio events with timing.</p>
+                    {s1Active && (
+                      <div className="mt-4 h-[2px] w-full bg-surface-container-highest">
+                        <motion.div className="h-full bg-primary" animate={{ width: ['0%', '70%'] }} transition={{ duration: 2, repeat: Infinity, repeatType: 'reverse' }} />
+                      </div>
+                    )}
+                  </div>
 
-            <div className={`p-6 rounded-lg border-l-2 shadow-2xl relative overflow-hidden ${isProcessing ? 'bg-surface-container-high border-primary' : 'bg-surface-container-lowest border-outline-variant/40'}`}>
-              {isProcessing && (
-                <div className="absolute top-0 right-0 p-2">
-                  <div className="w-2 h-2 rounded-full bg-primary animate-ping"></div>
-                </div>
-              )}
-              <div className="flex justify-between items-start mb-4">
-                {isProcessing ? <RefreshCw size={20} className="text-primary animate-spin" /> : isCompleted ? <CheckCircle2 size={20} className="text-primary fill-primary/20" /> : <Hourglass size={20} className="text-outline" />}
-                <span className={`font-label text-[10px] uppercase tracking-wider ${isProcessing ? 'text-primary' : 'text-outline'}`}>{isProcessing ? 'Active Stage' : 'Stage 02'}</span>
-              </div>
-              <h3 className="font-headline font-bold text-sm uppercase text-on-surface mb-2">Expert Routing</h3>
-              <p className="font-body text-xs text-on-surface-variant leading-relaxed">Distributing sub-processes across high-fidelity synthesis nodes.</p>
-              <div className="mt-4 h-[2px] w-full bg-surface-container-highest">
-                <motion.div
-                  className="h-full bg-primary"
-                  animate={isProcessing ? { width: ['0%', '50%'] } : { width: isCompleted ? '100%' : '10%' }}
-                  transition={isProcessing ? { duration: 1, repeat: Infinity, repeatType: 'reverse' } : { duration: 0.4 }}
-                />
-              </div>
-            </div>
+                  <div className={`p-6 rounded-lg border-l-2 shadow-2xl relative overflow-hidden ${s2Active ? 'bg-surface-container-high border-primary' : s2Done ? 'bg-surface-container border-primary/20' : 'bg-surface-container-lowest border-outline-variant/40'}`}>
+                    {s2Active && <div className="absolute top-0 right-0 p-2"><div className="w-2 h-2 rounded-full bg-primary animate-ping"></div></div>}
+                    <div className="flex justify-between items-start mb-4">
+                      {s2Active ? <RefreshCw size={20} className="text-primary animate-spin" /> : s2Done ? <CheckCircle2 size={20} className="text-primary fill-primary/20" /> : <Hourglass size={20} className="text-outline" />}
+                      <span className={`font-label text-[10px] uppercase tracking-wider ${s2Active ? 'text-primary' : 'text-outline'}`}>{s2Active ? 'Active' : 'Stage 02'}</span>
+                    </div>
+                    <h3 className="font-headline font-bold text-sm uppercase text-on-surface mb-2">Expert Routing</h3>
+                    <p className="font-body text-xs text-on-surface-variant leading-relaxed">Domain experts (SFX, Speech, Music, Song) select models and prepare inputs.</p>
+                    <div className="mt-4 h-[2px] w-full bg-surface-container-highest">
+                      <motion.div
+                        className="h-full bg-primary"
+                        animate={s2Active ? { width: ['0%', '60%'] } : { width: s2Done ? '100%' : '0%' }}
+                        transition={s2Active ? { duration: 1.5, repeat: Infinity, repeatType: 'reverse' } : { duration: 0.4 }}
+                      />
+                    </div>
+                  </div>
 
-            <div className={`p-6 rounded-lg border-l-2 ${isCompleted ? 'bg-surface-container border-primary/20' : 'bg-surface-container-lowest border-outline-variant opacity-60'}`}>
-              <div className="flex justify-between items-start mb-4">
-                {isCompleted ? <CheckCircle2 size={20} className="text-primary fill-primary/20" /> : <Hourglass size={20} className="text-outline" />}
-                <span className={`font-label text-[10px] uppercase tracking-wider ${isCompleted ? 'text-primary' : 'text-outline'}`}>Stage 03</span>
-              </div>
-              <h3 className={`font-headline font-bold text-sm uppercase mb-2 ${isCompleted ? 'text-on-surface' : 'text-on-surface-variant'}`}>Iterative Refinement</h3>
-              <p className={`font-body text-xs leading-relaxed ${isCompleted ? 'text-on-surface-variant' : 'text-outline'}`}>Final harmonic alignment and spatial normalization pass.</p>
-            </div>
+                  <div className={`p-6 rounded-lg border-l-2 ${s3Active ? 'bg-surface-container-high border-primary' : s3Done ? 'bg-surface-container border-primary/20' : 'bg-surface-container-lowest border-outline-variant opacity-60'}`}>
+                    {s3Active && <div className="absolute top-0 right-0 p-2"><div className="w-2 h-2 rounded-full bg-primary animate-ping"></div></div>}
+                    <div className="flex justify-between items-start mb-4">
+                      {s3Active ? <RefreshCw size={20} className="text-primary animate-spin" /> : s3Done ? <CheckCircle2 size={20} className="text-primary fill-primary/20" /> : <Hourglass size={20} className="text-outline" />}
+                      <span className={`font-label text-[10px] uppercase tracking-wider ${s3Active ? 'text-primary' : s3Done ? 'text-primary' : 'text-outline'}`}>{s3Active ? 'Active' : 'Stage 03'}</span>
+                    </div>
+                    <h3 className={`font-headline font-bold text-sm uppercase mb-2 ${s3Active || s3Done ? 'text-on-surface' : 'text-on-surface-variant'}`}>Synthesis & Mix</h3>
+                    <p className={`font-body text-xs leading-relaxed ${s3Active || s3Done ? 'text-on-surface-variant' : 'text-outline'}`}>Tree-of-Thought audio generation, evaluation, and final mix.</p>
+                    {s3Active && (
+                      <div className="mt-4 h-[2px] w-full bg-surface-container-highest">
+                        <motion.div className="h-full bg-primary" animate={{ width: ['0%', '50%'] }} transition={{ duration: 2, repeat: Infinity, repeatType: 'reverse' }} />
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </section>
 
           <section className="bg-surface-container-low rounded-xl p-8 aspect-video flex flex-col justify-center relative group overflow-hidden">
@@ -177,7 +214,7 @@ export function ProcessingView({ activeGeneration }: ProcessingViewProps) {
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="font-label text-[10px] text-outline uppercase">Target Model</dt>
-                <dd className="font-body text-xs text-on-surface font-medium text-right">{activeGeneration?.payload.languageModel || 'Genie-V3-Pro'}</dd>
+                <dd className="font-body text-xs text-on-surface font-medium text-right">{activeGeneration?.payload.languageModel || 'Kimi-K2.5'}</dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="font-label text-[10px] text-outline uppercase">Output Profile</dt>

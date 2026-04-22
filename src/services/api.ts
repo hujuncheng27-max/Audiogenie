@@ -5,9 +5,15 @@
 
 import { Artifact, GenerationConfig, GenerationPayload, GenerationResponse } from '../types';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
-const DEFAULT_POLL_INTERVAL_MS = 1200;
-const DEFAULT_POLL_TIMEOUT_MS = 45000;
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL !== undefined
+    ? import.meta.env.VITE_API_BASE_URL
+    : import.meta.env.DEV
+      ? 'http://localhost:8000'
+      : ''
+).replace(/\/$/, '');
+const DEFAULT_POLL_INTERVAL_MS = 3000;
+const DEFAULT_POLL_TIMEOUT_MS = 600000;
 
 export class ApiError extends Error {
   status?: number;
@@ -33,7 +39,7 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
       },
     });
   } catch (error) {
-    throw new ApiError('Unable to reach the AudioGenie backend.', path, undefined, {
+    throw new ApiError('Unable to reach the DubMaster backend.', path, undefined, {
       cause: error instanceof Error ? error : undefined,
     });
   }
@@ -123,6 +129,13 @@ export async function exportGeneration(id: string, config: Pick<GenerationConfig
   return apiRequest<{ url: string }>(`/generations/${id}/export?${params.toString()}`, {
     method: 'POST',
   });
+}
+
+/**
+ * Returns the preview URL for in-browser playback of a completed generation.
+ */
+export function getPreviewUrl(id: string): string {
+  return `${API_BASE_URL}/generations/${id}/preview`;
 }
 
 /**

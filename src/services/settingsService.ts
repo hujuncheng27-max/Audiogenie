@@ -1,7 +1,7 @@
 import { DEFAULT_GENERATION_CONFIG } from '../constants';
 import { GenerationConfig } from '../types';
 
-const SETTINGS_STORAGE_KEY = 'audiogenie.settings.v1';
+const SETTINGS_STORAGE_KEY = 'dubmaster.settings.v1';
 
 function isBrowser() {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
@@ -23,7 +23,7 @@ export function loadGenerationSettings(): GenerationConfig {
       ...JSON.parse(raw),
     };
   } catch (error) {
-    console.error('Failed to load AudioGenie settings:', error);
+    console.error('Failed to load DubMaster settings:', error);
     return DEFAULT_GENERATION_CONFIG;
   }
 }

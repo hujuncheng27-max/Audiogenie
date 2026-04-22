@@ -24,7 +24,7 @@ export function TopNavBar({ currentView, setView, generationConfig, onGeneration
       <nav className="flex justify-between items-center w-full px-12 h-20 bg-background sticky top-0 z-50 border-b border-outline-variant/10">
         <div className="flex items-center gap-8">
           <span className="text-xl font-black tracking-tighter text-on-surface font-headline uppercase cursor-pointer" onClick={() => setView('home')}>
-            AudioGenie
+            DubMaster
           </span>
           <div className="hidden md:flex items-center gap-6">
             <button
@@ -44,12 +44,6 @@ export function TopNavBar({ currentView, setView, generationConfig, onGeneration
               className={`text-sm tracking-wider transition-colors duration-200 ${currentView === 'history' ? 'text-primary border-b-2 border-primary pb-1' : 'text-outline hover:text-on-surface'}`}
             >
               History
-            </button>
-            <button
-              onClick={() => setView('docs')}
-              className={`text-sm tracking-wider transition-colors duration-200 ${currentView === 'docs' ? 'text-primary border-b-2 border-primary pb-1' : 'text-outline hover:text-on-surface'}`}
-            >
-              Docs
             </button>
           </div>
         </div>

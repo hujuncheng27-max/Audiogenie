@@ -2,15 +2,15 @@ import os
 import sqlite3
 from pathlib import Path
 
-# Resolve the backend/ directory reliably:
-# Go from backend/app/services/database.py → backend/
 _THIS_FILE = Path(os.path.abspath(__file__))
-_DB_DIR = _THIS_FILE.parent.parent.parent  # services → app → backend
-_DB_PATH = _DB_DIR / "audiogenie.db"
+
+# Use DATABASE_PATH env var if set (production: Fly.io Volume at /data/dubmaster.db).
+# Fall back to the local path inside backend/ for local development.
+_DEFAULT_DB_PATH = _THIS_FILE.parent.parent.parent / "dubmaster.db"
+_DB_PATH = Path(os.environ.get("DATABASE_PATH", str(_DEFAULT_DB_PATH)))
 
 
 def get_connection() -> sqlite3.Connection:
-    """Return a new SQLite connection with row-factory enabled."""
     conn = sqlite3.connect(str(_DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
@@ -19,38 +19,32 @@ def get_connection() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    """Create tables if they don't already exist, and seed mock data."""
     conn = get_connection()
     try:
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS generations (
-                id          TEXT PRIMARY KEY,
-                status      TEXT NOT NULL DEFAULT 'pending',
-                art_title   TEXT,
-                art_type    TEXT,
-                art_duration TEXT,
-                art_heights TEXT
+                id              TEXT PRIMARY KEY,
+                status          TEXT NOT NULL DEFAULT 'pending',
+                stage           TEXT DEFAULT 'uploading',
+                stage_detail    TEXT DEFAULT '',
+                art_title       TEXT,
+                art_type        TEXT,
+                art_duration    TEXT,
+                art_heights     TEXT,
+                audio_path      TEXT,
+                video_path      TEXT,
+                error_message   TEXT,
+                prompt          TEXT,
+                output_dir      TEXT,
+                created_at      TEXT DEFAULT (datetime('now'))
             );
 
             CREATE TABLE IF NOT EXISTS uploads (
                 ref      TEXT PRIMARY KEY,
-                filename TEXT NOT NULL
+                filename TEXT NOT NULL,
+                filepath TEXT NOT NULL DEFAULT ''
             );
         """)
-
-        # Seed mock data only if the table is empty (first run).
-        row = conn.execute("SELECT COUNT(*) AS cnt FROM generations").fetchone()
-        if row["cnt"] == 0:
-            seed = [
-                ("1", "completed", "Synthesis_A1", "SFX",        "00:12.4s", "4,8,12,16,24,20,14,10,12,18,22,16,12,8,4"),
-                ("2", "completed", "Synthesis_B2", "Speech",     "00:08.2s", "8,12,16,24,20,14,10,12,18,22,16,12,8,4,8"),
-                ("3", "completed", "Synthesis_C3", "Atmosphere", "00:30.0s", "12,16,24,20,14,10,12,18,22,16,12,8,4,8,12"),
-            ]
-            conn.executemany(
-                "INSERT INTO generations (id, status, art_title, art_type, art_duration, art_heights) VALUES (?,?,?,?,?,?)",
-                seed,
-            )
-
         conn.commit()
     finally:
         conn.close()

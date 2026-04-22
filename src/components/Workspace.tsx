@@ -30,10 +30,8 @@ export function Workspace({
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [prompt, setPrompt] = useState("");
-  const [outputClass, setOutputClass] = useState("Sound Effects");
-  const [languageModel, setLanguageModel] = useState("English (Studio High-Def)");
-  const [acousticStyle, setAcousticStyle] = useState("Industrial");
-  const [duration, setDuration] = useState(15);
+  const [outputClasses, setOutputClasses] = useState<string[]>(["Sound Effects"]);
+  const [duration, setDuration] = useState(12);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleGenerateClick = async () => {
@@ -41,9 +39,9 @@ export function Workspace({
     try {
       const request: GenerationDraft = {
         prompt,
-        outputClass,
-        languageModel,
-        acousticStyle,
+        outputClass: outputClasses.join(','),
+        languageModel: '',
+        acousticStyle: '',
         duration,
         videoFile,
         imageFile,
@@ -63,49 +61,39 @@ export function Workspace({
     <div className="p-8 md:p-12 max-w-[1600px] mx-auto w-full space-y-12">
       <header className="flex flex-col gap-2 border-l-4 border-primary pl-6">
         <h1 className="text-4xl md:text-5xl font-headline font-extrabold tracking-tight text-on-surface uppercase">Workspace</h1>
-        <p className="text-on-surface-variant font-label text-sm tracking-widest uppercase">Synthesis Engine v4.2 // Ready for Input</p>
+        <p className="text-on-surface-variant font-label text-sm tracking-widest uppercase">Multi-Agent Audio Generation Pipeline</p>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Panel: Source Material */}
-        <section className="lg:col-span-3 flex flex-col gap-6">
-          <UploadSection 
-            videoFile={videoFile}
-            setVideoFile={setVideoFile}
-            imageFile={imageFile}
-            setImageFile={setImageFile}
-            prompt={prompt}
-            setPrompt={setPrompt}
-          />
+        {/* Left: Source + Config */}
+        <section className="lg:col-span-8 flex flex-col gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <UploadSection
+              videoFile={videoFile}
+              setVideoFile={setVideoFile}
+              imageFile={imageFile}
+              setImageFile={setImageFile}
+              prompt={prompt}
+              setPrompt={setPrompt}
+            />
+            <OutputConfigSection
+              outputClasses={outputClasses}
+              setOutputClasses={setOutputClasses}
+              duration={duration}
+              setDuration={setDuration}
+            />
+          </div>
         </section>
 
-        {/* Center Panel: Configure Outputs */}
-        <section className="lg:col-span-6 flex flex-col gap-8">
-          <OutputConfigSection 
-            outputClass={outputClass}
-            setOutputClass={setOutputClass}
-            languageModel={languageModel}
-            setLanguageModel={setLanguageModel}
-            acousticStyle={acousticStyle}
-            setAcousticStyle={setAcousticStyle}
-            duration={duration}
-            setDuration={setDuration}
-            generationConfig={generationConfig}
-            onGenerationConfigChange={onGenerationConfigChange}
-          />
-        </section>
-
-        {/* Right Panel: Job Summary */}
-        <section className="lg:col-span-3 flex flex-col gap-6">
-          <JobSummarySection 
+        {/* Right: Summary + Generate */}
+        <section className="lg:col-span-4 flex flex-col gap-6">
+          <JobSummarySection
             prompt={prompt}
             videoFile={videoFile}
             imageFile={imageFile}
-            outputClass={outputClass}
-            acousticStyle={acousticStyle}
+            outputClass={outputClasses.join(', ')}
             onGenerate={handleGenerateClick}
             isProcessing={isSubmitting}
-            generationConfig={generationConfig}
           />
         </section>
       </div>
@@ -162,7 +150,7 @@ export function Workspace({
             </div>
           ))}
 
-          <div 
+          <div
             onClick={onNewGeneration}
             className="border-2 border-dashed border-outline-variant/20 rounded-lg flex flex-col items-center justify-center p-8 text-outline gap-2 cursor-pointer hover:bg-surface-container-low transition-colors"
           >

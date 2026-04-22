@@ -19,7 +19,6 @@ import { Footer } from './components/Footer';
 import { Workspace } from './components/Workspace';
 import { ProcessingView } from './components/ProcessingView';
 import { HistoryView } from './components/HistoryView';
-import { DocsView } from './components/DocsView';
 import { HomeView } from './components/HomeView';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppNoticeBanner } from './components/AppNoticeBanner';
@@ -38,11 +37,19 @@ import {
   loadHistory,
   updateHistoryExportInfo,
 } from './services/historyService';
-import { createLocalExportUrl } from './services/localExport';
 import { loadGenerationSettings, saveGenerationSettings } from './services/settingsService';
-import { runDemoGeneration, shouldUseDemoMode } from './services/demoGenerationService';
 
-const NOTICE_TIMEOUT_MS = 5200;
+function describeError(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  if (typeof error === 'string' && error) {
+    return error;
+  }
+  return 'Unknown error';
+}
+
+const NOTICE_TIMEOUT_MS = 15000;
 
 export default function App() {
   const [view, setView] = useState<View>('home');
@@ -52,7 +59,6 @@ export default function App() {
   const [activeGeneration, setActiveGeneration] = useState<ActiveGeneration | null>(null);
   const [generationConfig, setGenerationConfig] = useState<GenerationConfig>(() => loadGenerationSettings());
   const [notice, setNotice] = useState<AppNotice | null>(null);
-  const [demoModeEnabled, setDemoModeEnabled] = useState(false);
   const [historyFocusId, setHistoryFocusId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -131,7 +137,12 @@ export default function App() {
       try {
         pushNotice('info', 'Auto-export started', 'Preparing your latest result for download.');
         const exportResponse = await handleExport(resultId);
-        window.open(exportResponse.url, '_blank', 'noopener,noreferrer');
+        const a = document.createElement('a');
+        a.href = exportResponse.url;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
       } catch (autoExportError) {
         console.error('Auto export failed:', autoExportError);
         pushNotice('warning', 'Export delayed', 'The result was created, but automatic export could not be opened right away.');
@@ -140,9 +151,8 @@ export default function App() {
   };
 
   const runLiveGeneration = async (payload: GenerationPayload) => {
-    pushNotice('info', 'Submitting generation job', 'Sending your current AudioGenie configuration to the live backend.');
+    pushNotice('info', 'Submitting generation job', 'Sending your current DubMaster configuration to the live backend.');
     const response = await createGeneration(payload);
-    setDemoModeEnabled(false);
     setActiveGeneration({
       id: response.id,
       status: response.status,
@@ -152,45 +162,31 @@ export default function App() {
     });
 
     return pollGenerationStatus(response.id, (update) => {
+      const stageMessages: Record<string, string> = {
+        uploading: 'Preparing source inputs...',
+        planning: 'Stage 1: Analyzing inputs and creating audio event plan...',
+        assigning: 'Stage 2: Routing events to domain experts (SFX, Speech, Music, Song)...',
+        synthesizing: 'Stage 3: Generating audio with Tree-of-Thought refinement...',
+        mixing: 'Compositing and mixing audio tracks...',
+        done: 'Generation complete.',
+      };
+      const stageMsg = update.stage ? stageMessages[update.stage] || update.stageDetail || '' : '';
+      const detailMsg = update.stageDetail || stageMsg;
+
       setActiveGeneration({
         id: update.id,
         status: update.status,
         payload,
         runtimeMode: 'live',
-        statusMessage: update.status === 'processing'
+        stage: update.stage,
+        stageDetail: update.stageDetail,
+        statusMessage: detailMsg || (update.status === 'processing'
           ? 'Live generation in progress.'
           : update.status === 'completed'
             ? 'Finalizing backend result.'
-            : 'Waiting for backend worker.',
+            : 'Waiting for backend worker.'),
       });
     });
-  };
-
-  const runDemoGenerationFallback = async (payload: GenerationPayload) => {
-    setDemoModeEnabled(true);
-    pushNotice('warning', 'Backend unavailable, using demo generation mode', 'Running mock generation preview with your current inputs.');
-
-    const result = await runDemoGeneration(payload, (update) => {
-      setActiveGeneration({
-        id: update.id,
-        status: update.status,
-        payload,
-        runtimeMode: 'demo',
-        statusMessage: update.status === 'pending'
-          ? 'Backend unavailable, using demo generation mode.'
-          : update.status === 'processing'
-            ? 'Running mock generation preview.'
-            : 'Demo result created locally.',
-      });
-    });
-
-    if (result.status === 'completed' && result.artifact) {
-      await persistCompletedArtifact(result.id, result.artifact, payload, 'demo');
-      pushNotice('success', 'Demo result created locally', 'Your demo artifact was saved to local history and is ready to explore.');
-      return;
-    }
-
-    throw new Error('Demo generation did not produce a local artifact.');
   };
 
   const handleGenerate = async (draft: GenerationDraft) => {
@@ -207,7 +203,7 @@ export default function App() {
       id: 'preparing-inputs',
       status: 'pending',
       payload,
-      runtimeMode: demoModeEnabled ? 'demo' : 'live',
+      runtimeMode: 'live',
       statusMessage: 'Preparing source inputs for generation.',
     });
 
@@ -232,17 +228,17 @@ export default function App() {
         return;
       }
 
-      console.error('Generation returned without a completed artifact:', result);
-      throw new Error('Live generation did not return a completed artifact.');
+      if (result.status === 'failed') {
+        const detail = result.stageDetail || 'Backend reported the generation failed without a detail message.';
+        pushNotice('error', 'Generation failed', detail);
+      } else {
+        pushNotice('error', 'Generation did not complete', `Backend returned status "${result.status}" without a completed artifact.`);
+      }
+      setActiveGeneration(null);
+      setView('workspace');
     } catch (error) {
       console.error('Generation flow failed:', error);
-
-      if (shouldUseDemoMode(error)) {
-        await runDemoGenerationFallback(payload);
-        return;
-      }
-
-      pushNotice('error', 'Generation unavailable', 'AudioGenie could not start this generation right now. Please try again shortly.');
+      pushNotice('error', 'Generation failed', describeError(error));
       setActiveGeneration(null);
       setView('workspace');
     }
@@ -262,7 +258,7 @@ export default function App() {
 
   const handleClearHistory = () => {
     setArtifacts(clearHistory());
-    pushNotice('info', 'Local history cleared', 'All locally saved AudioGenie artifacts were removed from this browser.');
+    pushNotice('info', 'Local history cleared', 'All locally saved DubMaster artifacts were removed from this browser.');
   };
 
   const handleExport = async (id: string) => {
@@ -278,20 +274,9 @@ export default function App() {
       }, generationConfig.keepHistory));
       return response;
     } catch (error) {
-      console.error('Export request failed, using local fallback if available:', error);
-
-      if (!artifact) {
-        throw error;
-      }
-
-      const fallbackUrl = createLocalExportUrl(artifact);
-      setArtifacts(updateHistoryExportInfo(id, {
-        url: fallbackUrl,
-        lastExportedAt: new Date().toISOString(),
-        format: artifact.generationConfig.exportFormat,
-      }, generationConfig.keepHistory));
-      pushNotice('info', 'Using local export fallback', 'The backend export endpoint is unavailable, so AudioGenie prepared a local demo export instead.');
-      return { url: fallbackUrl };
+      console.error('Export request failed:', error);
+      pushNotice('error', 'Export failed', describeError(error));
+      throw error;
     }
   };
 
@@ -315,7 +300,6 @@ export default function App() {
       {notice && (
         <AppNoticeBanner
           notice={notice}
-          demoModeEnabled={demoModeEnabled}
           onDismiss={() => setNotice(null)}
         />
       )}
@@ -394,18 +378,6 @@ export default function App() {
                   focusedArtifactId={historyFocusId}
                   onFocusHandled={() => setHistoryFocusId(null)}
                 />
-              </motion.div>
-            )}
-            {view === 'docs' && (
-              <motion.div
-                key="docs"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-                className="flex-grow flex flex-col"
-              >
-                <DocsView />
               </motion.div>
             )}
           </AnimatePresence>

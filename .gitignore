@@ -17,3 +17,5 @@ __pycache__/
 config.yaml
 *.json
 *.lrc
+outputs/
+backend/uploads/
