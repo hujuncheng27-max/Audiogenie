@@ -29,10 +29,14 @@ export function Workspace({
 }: WorkspaceProps) {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [referenceAudioFile, setReferenceAudioFile] = useState<File | null>(null);
+  const [speechTargetText, setSpeechTargetText] = useState("");
   const [prompt, setPrompt] = useState("");
   const [outputClasses, setOutputClasses] = useState<string[]>(["Sound Effects"]);
   const [duration, setDuration] = useState(12);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const speechSelected = outputClasses.includes("Speech");
 
   const handleGenerateClick = async () => {
     setIsSubmitting(true);
@@ -45,6 +49,8 @@ export function Workspace({
         duration,
         videoFile,
         imageFile,
+        referenceAudioFile: speechSelected ? referenceAudioFile : null,
+        speechTargetText: speechSelected ? speechTargetText : '',
         config: generationConfig,
         requestedAt: new Date().toISOString(),
       };
@@ -75,6 +81,11 @@ export function Workspace({
               setImageFile={setImageFile}
               prompt={prompt}
               setPrompt={setPrompt}
+              showReferenceAudio={speechSelected}
+              referenceAudioFile={referenceAudioFile}
+              setReferenceAudioFile={setReferenceAudioFile}
+              speechTargetText={speechTargetText}
+              setSpeechTargetText={setSpeechTargetText}
             />
             <OutputConfigSection
               outputClasses={outputClasses}
@@ -119,7 +130,7 @@ export function Workspace({
               <div className="flex justify-between items-start">
                 <div className="flex gap-3">
                   <div className="w-10 h-10 bg-surface-container-highest rounded flex items-center justify-center text-primary">
-                    {art.type === 'Atmosphere' ? <Music2 size={20} className="text-tertiary" /> : <Waves size={20} />}
+                    {art.type === 'Song' ? <Music2 size={20} className="text-tertiary" /> : <Waves size={20} />}
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-on-surface uppercase tracking-tighter">{art.title}</h3>

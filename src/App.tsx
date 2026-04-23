@@ -26,6 +26,7 @@ import {
   createGeneration,
   exportGeneration,
   pollGenerationStatus,
+  uploadAudio,
   uploadImage,
   uploadVideo,
 } from './services/api';
@@ -107,6 +108,7 @@ export default function App() {
     duration: draft.duration,
     videoFileName: draft.videoFile?.name,
     imageFileName: draft.imageFile?.name,
+    speechTargetText: draft.speechTargetText,
     requestedAt: draft.requestedAt,
     config: draft.config,
   });
@@ -196,6 +198,18 @@ export default function App() {
       return;
     }
 
+    const speechSelected = draft.outputClass.split(',').map((c) => c.trim()).includes('Speech');
+    if (speechSelected && !draft.referenceAudioFile) {
+      pushNotice('warning', 'Reference voice required', 'Speech output requires a reference audio clip for voice cloning. Upload a short WAV/MP3 sample.');
+      setView('workspace');
+      return;
+    }
+    if (speechSelected && !(draft.speechTargetText || '').trim()) {
+      pushNotice('warning', 'Target utterance required', 'Enter the exact sentence you want the cloned voice to speak in the "What to Say" box.');
+      setView('workspace');
+      return;
+    }
+
     let payload = buildPayloadFromDraft(draft);
 
     setView('processing');
@@ -218,6 +232,12 @@ export default function App() {
         pushNotice('info', 'Uploading source image', 'Preparing visual scene cues for generation.');
         const imageUpload = await uploadImage(draft.imageFile);
         payload = { ...payload, imageRef: imageUpload.ref };
+      }
+
+      if (draft.referenceAudioFile) {
+        pushNotice('info', 'Uploading reference voice', 'Preparing voice cloning reference.');
+        const audioUpload = await uploadAudio(draft.referenceAudioFile);
+        payload = { ...payload, referenceAudioRef: audioUpload.ref };
       }
 
       const result = await runLiveGeneration(payload);

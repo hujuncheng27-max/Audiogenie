@@ -13,12 +13,12 @@ interface HomeViewProps {
 
 const demos = [
   {
-    title: 'Atmosphere Demo',
-    description: 'Ambient soundscape generation — environmental layers, atmospheric pads, and natural textures driven by multimodal input.',
-    outputType: 'Atmosphere',
+    title: 'Song Demo',
+    description: 'Full song generation — vocal melodies with instrumental accompaniment driven by multimodal input.',
+    outputType: 'Song',
     icon: ImageIcon,
     source: 'Video + Text Prompt',
-    video: '/demos/atmosphere.mp4',
+    video: '/demos/song.mp4',
     color: 'bg-tertiary-container text-on-tertiary-container',
   },
   {
@@ -42,7 +42,7 @@ const demos = [
   {
     title: 'Music Demo',
     description: 'AI-composed musical score — ambient pads, melodic lines, and rhythmic beds tailored to scene context and mood.',
-    outputType: 'Music',
+    outputType: 'Background Music',
     icon: Music4,
     source: 'Image + Text Prompt',
     video: '/demos/music.mp4',
@@ -52,7 +52,7 @@ const demos = [
 
 const pipelineSteps = [
   { step: '01', title: 'Upload or Describe', detail: 'Provide a video, image, or text prompt as your source material.' },
-  { step: '02', title: 'Configure Output', detail: 'Select audio category (SFX / Speech / Music / Atmosphere) and target duration.' },
+  { step: '02', title: 'Configure Output', detail: 'Select audio category (SFX / Speech / Background Music / Song) and target duration.' },
   { step: '03', title: 'AI Planning', detail: 'The LLM decomposes your input into a structured audio event plan.' },
   { step: '04', title: 'Synthesize & Mix', detail: 'Domain experts generate each event via Tree-of-Thought refinement, then mix.' },
 ];

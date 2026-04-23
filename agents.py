@@ -147,6 +147,13 @@ class GenerationTeam:
             hint_lines.append(
                 f"- Target total duration: {target_duration} seconds. Keep every event inside [0, {target_duration}]."
             )
+        speech_target_text = (ctx.get("speech_target_text") or "").strip()
+        if speech_target_text:
+            hint_lines.append(
+                f"- The user has provided the EXACT speech utterance: \"{speech_target_text}\". "
+                f"Produce exactly ONE speech event whose Object and description contain this verbatim sentence; "
+                f"do not paraphrase, split, or translate it."
+            )
         if hint_lines:
             user = user + "\n\nUser constraints (respect these):\n" + "\n".join(hint_lines)
 
@@ -193,8 +200,15 @@ class GenerationTeam:
             "video_seconds": probe_video_seconds((plan_ctx or {}).get("video")) if (plan_ctx or {}).get("video") else None,
             "text": (plan_ctx or {}).get("text"),
             "image": (plan_ctx or {}).get("image"),
-            "prompt_wav_path": (plan_ctx or {}).get("prompt_wav_path"),
-            "prompt_transcript": (plan_ctx or {}).get("prompt_transcript"),
+            "prompt_wav_path": (plan_ctx or {}).get("prompt_wav_path") or (plan_ctx or {}).get("reference_audio"),
+            "prompt_transcript": (
+                (plan_ctx or {}).get("prompt_transcript")
+                or (plan_ctx or {}).get("reference_audio_transcript")
+                or ""
+            ),
+            "reference_audio": (plan_ctx or {}).get("reference_audio"),
+            "reference_audio_transcript": (plan_ctx or {}).get("reference_audio_transcript") or "",
+            "speech_target_text": (plan_ctx or {}).get("speech_target_text") or "",
             "__outdir__": outdir,
         }
 

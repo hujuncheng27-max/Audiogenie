@@ -8,6 +8,7 @@ import io
 import json
 import math
 import os
+import re
 import sys
 import uuid
 import random
@@ -33,12 +34,10 @@ if _PROJECT_ROOT not in sys.path:
 
 
 _OUTPUT_CLASS_ALLOWLIST = {
-    "sound effects": {"sound effect", "sound_effect", "sfx"},
-    "speech":        {"speech", "tts", "voice"},
-    "music":         {"music"},
-    "song":          {"song", "singing", "vocal"},
-    # Atmosphere is a soundscape — accept ambient SFX + music beds.
-    "atmosphere":    {"sound effect", "sound_effect", "sfx", "music"},
+    "sound effects":     {"sound effect", "sound_effect", "sfx"},
+    "speech":            {"speech", "tts", "voice"},
+    "background music":  {"music"},
+    "song":              {"song", "singing", "vocal"},
 }
 
 
@@ -86,11 +85,10 @@ def _enforce_user_constraints(
         from plan import AudioEvent
 
         _canonical = {
-            "sound effects": "sound_effect",
-            "speech":        "speech",
-            "music":         "music",
-            "song":          "song",
-            "atmosphere":    "sound_effect",
+            "sound effects":     "sound_effect",
+            "speech":            "speech",
+            "background music":  "music",
+            "song":              "song",
         }
         first_class = parts[0] if parts else "sound_effect"
         preferred = _canonical.get(first_class, "sound_effect")
@@ -107,6 +105,62 @@ def _enforce_user_constraints(
         ]
 
     plan.events = kept
+
+
+def _clean_reference_transcript(raw: str) -> str:
+    text = (raw or "").strip()
+    if not text:
+        return ""
+
+    fenced = re.search(r"```(?:text|json)?\s*(.*?)\s*```", text, flags=re.DOTALL | re.IGNORECASE)
+    if fenced:
+        text = fenced.group(1).strip()
+
+    try:
+        obj = json.loads(text)
+        if isinstance(obj, dict):
+            for key in ("transcript", "text", "content"):
+                if isinstance(obj.get(key), str):
+                    text = obj[key].strip()
+                    break
+    except Exception:
+        pass
+
+    for prefix in (
+        "transcript:",
+        "transcription:",
+        "reference transcript:",
+        "the transcript is:",
+        "参考音频内容：",
+        "转录：",
+    ):
+        if text.lower().startswith(prefix):
+            text = text[len(prefix):].strip()
+
+    text = text.strip().strip('"').strip("'").strip()
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return " ".join(lines)[:500]
+
+
+def _auto_transcribe_reference_audio(reference_audio_path: Optional[str], audio_llm) -> str:
+    """Best-effort helper so users do not need to type the reference transcript."""
+    if not reference_audio_path or not os.path.exists(reference_audio_path) or audio_llm is None:
+        return ""
+
+    system = (
+        "You are an exact speech transcriber. "
+        "Listen to the reference audio and return only the spoken words. "
+        "Do not explain, translate, summarize, or add labels."
+    )
+    user = "Transcribe the attached reference audio verbatim. Return plain text only."
+
+    try:
+        raw = audio_llm.chat(system=system, user=user, media={"audio": reference_audio_path})
+    except Exception as exc:
+        print(f"[WARN] Failed to auto-transcribe reference audio: {exc}")
+        return ""
+
+    return _clean_reference_transcript(raw)
 
 
 class GenerationService:
@@ -288,6 +342,9 @@ class GenerationService:
         prompt: Optional[str],
         video_path: Optional[str],
         image_path: Optional[str],
+        reference_audio_path: Optional[str] = None,
+        reference_audio_transcript: Optional[str] = None,
+        speech_target_text: Optional[str] = None,
         llm_name: str = "kimi",
         max_depth: int = 3,
         max_siblings: int = 1,
@@ -300,6 +357,8 @@ class GenerationService:
             args=(
                 job_id, prompt, video_path, image_path, llm_name,
                 max_depth, max_siblings, output_class, target_duration,
+                reference_audio_path, reference_audio_transcript,
+                speech_target_text,
             ),
             daemon=True,
         )
@@ -316,6 +375,9 @@ class GenerationService:
         max_siblings: int,
         output_class: Optional[str] = None,
         target_duration: Optional[float] = None,
+        reference_audio_path: Optional[str] = None,
+        reference_audio_transcript: Optional[str] = None,
+        speech_target_text: Optional[str] = None,
     ) -> None:
         try:
             self._update_status(job_id, GenerationStatus.PROCESSING.value)
@@ -349,12 +411,29 @@ class GenerationService:
                 critic_llm = None
             system = DubMasterSystem(llm, outdir=outdir, critic_llm=critic_llm)
 
+            reference_audio_transcript = (reference_audio_transcript or "").strip()
+            if reference_audio_path and not reference_audio_transcript:
+                self._update_stage(
+                    job_id,
+                    GenerationStage.PLANNING.value,
+                    "Preparing reference voice automatically...",
+                )
+                reference_audio_transcript = _auto_transcribe_reference_audio(
+                    reference_audio_path,
+                    critic_llm,
+                )
+
             ctx = {
                 "text": prompt,
                 "image": image_path,
                 "video": video_path if video_path not in (None, "None", "none", "") else None,
                 "output_class": output_class,
                 "target_duration": target_duration,
+                "reference_audio": reference_audio_path,
+                "reference_audio_transcript": reference_audio_transcript or "",
+                "prompt_wav_path": reference_audio_path,
+                "prompt_transcript": reference_audio_transcript or "",
+                "speech_target_text": speech_target_text or "",
             }
 
             # Run stage 1: plan

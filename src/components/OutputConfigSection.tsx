@@ -45,7 +45,7 @@ export function OutputConfigSection({
       <div className="flex flex-col gap-3">
         <label className="font-label text-[10px] uppercase tracking-widest text-outline">Output Class (multi-select)</label>
         <div className="grid grid-cols-2 gap-2">
-          {['Sound Effects', 'Speech', 'Music', 'Atmosphere'].map((cls) => (
+          {['Sound Effects', 'Speech', 'Background Music', 'Song'].map((cls) => (
             <button
               key={cls}
               onClick={() => toggleClass(cls)}

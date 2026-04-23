@@ -59,7 +59,7 @@ export const MOCK_ARTIFACTS: Artifact[] = [
   {
     id: '2',
     title: 'Ambient Void_Deep',
-    type: 'Atmosphere',
+    type: 'Song',
     duration: '01:30.0s',
     heights: [],
     createdAt: new Date(0).toISOString(),
@@ -68,7 +68,7 @@ export const MOCK_ARTIFACTS: Artifact[] = [
     previewMetadata: {
       barCount: 0,
       hasWaveform: false,
-      outputClass: 'Atmosphere',
+      outputClass: 'Song',
       languageModel: 'Unknown',
       acousticStyle: 'Unknown',
       hasVisualConditioning: false,

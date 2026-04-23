@@ -17,10 +17,13 @@ async def create_generation(payload: GenerationPayload):
     # Resolve uploaded file refs to real file paths
     video_path = None
     image_path = None
+    reference_audio_path = None
     if payload.videoRef:
         video_path = storage_service.get_filepath(payload.videoRef)
     if payload.imageRef:
         image_path = storage_service.get_filepath(payload.imageRef)
+    if payload.referenceAudioRef:
+        reference_audio_path = storage_service.get_filepath(payload.referenceAudioRef)
 
     # Determine LLM to use (map frontend languageModel to config key)
     llm_name = "kimi"
@@ -31,6 +34,9 @@ async def create_generation(payload: GenerationPayload):
         prompt=payload.prompt or None,
         video_path=video_path,
         image_path=image_path,
+        reference_audio_path=reference_audio_path,
+        reference_audio_transcript=payload.referenceAudioTranscript,
+        speech_target_text=payload.speechTargetText,
         llm_name=llm_name,
         output_class=payload.outputClass,
         target_duration=payload.duration,

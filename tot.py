@@ -49,6 +49,42 @@ def _as_flag(k: str, v) -> List[str]:
     return [f"--{k}", str(v)]
 
 
+def _audio_is_non_silent(path: str, rms_threshold: int = 8) -> Tuple[bool, str]:
+    if not path or not os.path.exists(path):
+        return False, "missing output file"
+
+    try:
+        import audioop
+        import wave
+
+        with wave.open(path, "rb") as reader:
+            frames = reader.getnframes()
+            if frames <= 0:
+                return False, "audio has no frames"
+            data = reader.readframes(frames)
+            if not data:
+                return False, "audio has no sample data"
+            rms = audioop.rms(data, reader.getsampwidth())
+            peak = audioop.max(data, reader.getsampwidth())
+            if rms <= rms_threshold or peak <= rms_threshold:
+                return False, f"silent audio detected (rms={rms}, peak={peak})"
+            return True, ""
+    except Exception:
+        pass
+
+    try:
+        from pydub import AudioSegment
+
+        audio = AudioSegment.from_file(path)
+        if len(audio) <= 0:
+            return False, "audio has no duration"
+        if audio.rms <= rms_threshold or audio.max <= rms_threshold:
+            return False, f"silent audio detected (rms={audio.rms}, peak={audio.max})"
+        return True, ""
+    except Exception as exc:
+        return False, f"failed to inspect generated audio: {type(exc).__name__}: {exc}"
+
+
 @dataclass
 class ToTNode:
     node_id: str
@@ -306,15 +342,22 @@ class ToTExecutor:
                 if "error" in meta_extras: node.meta["error"] = meta_extras["error"]
                 if "error_type" in meta_extras: node.meta["error_type"] = meta_extras["error_type"]
 
-                if not wav_path or not os.path.exists(wav_path):
+                valid_audio = False
+                validation_error = ""
+                if wav_path and os.path.exists(wav_path):
+                    valid_audio, validation_error = _audio_is_non_silent(wav_path)
+
+                if not valid_audio:
                     scores = {"quality": 0.0, "alignment": 0.0, "aesthetics": 0.0}
-                    err_msg = meta_extras.get("error")
+                    err_msg = meta_extras.get("error") or validation_error
                     if err_msg:
                         err_type = meta_extras.get("error_type") or "Error"
                         suggestions = [f"Tool failed: {err_type}: {err_msg}"]
+                        node.meta["error"] = err_msg
+                        node.meta["error_type"] = meta_extras.get("error_type") or "InvalidAudio"
                     else:
                         suggestions = ["Tool failed to generate valid audio output"]
-                    log_step(f"Tool output validation failed: wav_path={wav_path} error={meta_extras.get('error')}")
+                    log_step(f"Tool output validation failed: wav_path={wav_path} error={err_msg}")
                 else:
                     if self.critic_llm is None:
                         # No audio-capable LLM available; use neutral scores so ToT
@@ -342,7 +385,7 @@ class ToTExecutor:
                 # Always promote a valid wav when best_wav is still empty — the critic
                 # may be a text-only LLM that returns all-zero scores for audio inputs,
                 # in which case strict `>` comparison would never pick any candidate.
-                has_valid_wav = bool(wav_path) and os.path.exists(wav_path)
+                has_valid_wav = valid_audio
                 if has_valid_wav and (
                     best_wav is None
                     or _weighted_score(scores) > _weighted_score(best_scores)

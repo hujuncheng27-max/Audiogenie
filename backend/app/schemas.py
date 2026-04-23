@@ -45,6 +45,9 @@ class GenerationPayload(BaseModel):
     duration: int
     videoRef: Optional[str] = None
     imageRef: Optional[str] = None
+    referenceAudioRef: Optional[str] = None
+    referenceAudioTranscript: Optional[str] = None
+    speechTargetText: Optional[str] = None
     videoFileName: Optional[str] = None
     imageFileName: Optional[str] = None
     requestedAt: Optional[str] = None

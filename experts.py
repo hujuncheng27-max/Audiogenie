@@ -366,8 +366,17 @@ class SpeechExpert(BaseExpert):
         return ""
 
     def _resolve_prompt_reference(self, plan_ctx: Dict[str, Any]) -> tuple[str, str]:
-        prompt_wav_path = str((plan_ctx or {}).get("prompt_wav_path") or "").strip()
-        prompt_transcript = str((plan_ctx or {}).get("prompt_transcript") or "").strip()
+        prompt_wav_path = str(
+            (plan_ctx or {}).get("prompt_wav_path")
+            or (plan_ctx or {}).get("reference_audio")
+            or ""
+        ).strip()
+        prompt_transcript = str(
+            (plan_ctx or {}).get("prompt_transcript")
+            or (plan_ctx or {}).get("reference_audio_transcript")
+            or ""
+        ).strip()
+        fallback_transcript = str((plan_ctx or {}).get("speech_target_text") or "").strip()
 
         if prompt_wav_path and os.path.exists(prompt_wav_path):
             if not prompt_transcript:
@@ -378,9 +387,9 @@ class SpeechExpert(BaseExpert):
                     if prompt_transcript:
                         plan_ctx[cache_key] = prompt_transcript
                         plan_ctx["prompt_transcript"] = prompt_transcript
-            return prompt_wav_path, (prompt_transcript or self.DEFAULT_PROMPT_TRANSCRIPT)
+            return prompt_wav_path, (prompt_transcript or fallback_transcript or self.DEFAULT_PROMPT_TRANSCRIPT)
 
-        return self.DEFAULT_PROMPT_WAV, (prompt_transcript or self.DEFAULT_PROMPT_TRANSCRIPT)
+        return self.DEFAULT_PROMPT_WAV, (prompt_transcript or fallback_transcript or self.DEFAULT_PROMPT_TRANSCRIPT)
 
     def process_batch(self, events: List[AudioEvent], plan_ctx: Dict[str, Any], llm: LLM) -> List[AudioEvent]:
         if not events:
@@ -408,11 +417,12 @@ class SpeechExpert(BaseExpert):
         else:
             idx_map = {}
 
+        user_target_text = (plan_ctx.get("speech_target_text") or "").strip()
         out: List[AudioEvent] = []
         prompt_wav, prompt_transcript = self._resolve_prompt_reference(plan_ctx)
         for i,e in enumerate(events):
             it = idx_map.get(i, {})
-            utter = it.get("utterance") or _extract_quoted(e.object) or _extract_quoted(e.description) or (e.description or e.object or "...")
+            utter = user_target_text or it.get("utterance") or _extract_quoted(e.object) or _extract_quoted(e.description) or (e.description or e.object or "...")
             style = it.get("voice_style") or "neutral narration"
             cands = self._tools_for_tasks("tts", "speech", "voice")
             e.model_candidates = cands[:2]

@@ -8,6 +8,16 @@ from utils.runtime_logger import instrument_llm_chat, log_step
 
 _CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.yaml")
 
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"),
+        encoding="utf-8-sig",
+    )
+except Exception:
+    pass
+
 
 def _expand_env_vars(obj):
     """Recursively expand ${VAR_NAME} placeholders using environment variables.

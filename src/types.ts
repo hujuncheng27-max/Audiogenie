@@ -71,6 +71,8 @@ export interface GenerationDraft {
   duration: number;
   videoFile: File | null;
   imageFile: File | null;
+  referenceAudioFile?: File | null;
+  speechTargetText?: string;
   config: GenerationConfig;
   requestedAt: string;
 }
@@ -83,6 +85,8 @@ export interface GenerationPayload {
   duration: number;
   videoRef?: string;
   imageRef?: string;
+  referenceAudioRef?: string;
+  speechTargetText?: string;
   videoFileName?: string;
   imageFileName?: string;
   requestedAt: string;

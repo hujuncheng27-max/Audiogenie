@@ -89,6 +89,19 @@ export async function uploadImage(file: File): Promise<{ ref: string }> {
 }
 
 /**
+ * Uploads a reference audio file for voice cloning (CosyVoice).
+ */
+export async function uploadAudio(file: File): Promise<{ ref: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return apiRequest<{ ref: string }>('/upload/audio', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+/**
  * Initiates a new audio generation job.
  */
 export async function createGeneration(payload: GenerationPayload): Promise<GenerationResponse> {
